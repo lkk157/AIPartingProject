@@ -31,6 +31,8 @@ docs/     开发规划、阶段规范、UI 规范
 
 ## 快速开始
 
+> 使用 IntelliJ IDEA？看这份图文步骤：[docs/本地启动指南-IDEA.md](docs/本地启动指南-IDEA.md)（仓库内置 `.run/` 一键运行配置）。
+
 ```bash
 # 1. 基础设施（MySQL 3307 / Redis 6380，避开本机已占用的 3306/6379）
 cd infra && cp .env.example .env && docker compose up -d
