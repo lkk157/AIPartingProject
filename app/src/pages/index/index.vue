@@ -1,72 +1,135 @@
 <template>
   <view class="page">
-    <!-- 渐变头部 -->
     <view class="hero">
-      <view class="hero-title">智泊停车</view>
-      <view class="hero-sub">快速找位 · 预约停车 · 无感支付</view>
+      <view class="hero-top">
+        <view class="hero-title">智泊停车</view>
+        <view class="hero-user" @click="onUserTap">{{ greeting }}</view>
+      </view>
+      <view class="hero-sub">快速找位 · 在线预约 · 无感支付</view>
       <view class="hero-stats">
         <view class="stat">
-          <view class="stat-value">128</view>
-          <view class="stat-label">空闲车位</view>
+          <view class="stat-value">{{ lots.length }}</view>
+          <view class="stat-label">在营停车场</view>
         </view>
         <view class="stat-divider" />
         <view class="stat">
-          <view class="stat-value">36</view>
-          <view class="stat-label">今日预约</view>
+          <view class="stat-value">{{ totalSpaces }}</view>
+          <view class="stat-label">车位总数</view>
         </view>
         <view class="stat-divider" />
         <view class="stat">
-          <view class="stat-value">24</view>
-          <view class="stat-label">实时缴费</view>
+          <view class="stat-value">{{ loggedIn ? '已登录' : '未登录' }}</view>
+          <view class="stat-label">当前状态</view>
         </view>
       </view>
     </view>
 
-    <!-- 功能宫格 -->
-    <view class="card grid">
-      <view v-for="item in entries" :key="item.label" class="grid-item">
-        <view class="grid-icon" :style="{ background: item.bg, color: item.color }">
-          {{ item.icon }}
-        </view>
-        <text class="grid-label">{{ item.label }}</text>
+    <view class="card shortcuts">
+      <view class="shortcut" @click="goOrders">
+        <view class="shortcut-icon blue">约</view>
+        <text class="shortcut-label">我的预约</text>
+      </view>
+      <view class="shortcut" @click="goOrders">
+        <view class="shortcut-icon orange">单</view>
+        <text class="shortcut-label">我的订单</text>
+      </view>
+      <view class="shortcut" @click="goLogin">
+        <view class="shortcut-icon green">登</view>
+        <text class="shortcut-label">{{ loggedIn ? '切换账号' : '登录' }}</text>
       </view>
     </view>
 
-    <!-- 附近停车场 -->
     <view class="section-title">附近停车场</view>
-    <view v-for="lot in lots" :key="lot.id" class="card lot">
+
+    <view v-if="!loggedIn" class="card empty">
+      <view class="empty-text">登录后查看附近停车场并预约车位</view>
+      <button class="primary-btn" size="mini" @click="goLogin">去登录</button>
+    </view>
+
+    <view v-else-if="lots.length === 0" class="card empty">
+      <view class="empty-text">暂无在营停车场，请稍后再试</view>
+    </view>
+
+    <view v-for="lot in lots" :key="lot.id" class="card lot" @click="openLot(lot.id)">
       <view class="lot-icon">P</view>
       <view class="lot-main">
         <view class="lot-name">{{ lot.name }}</view>
-        <view class="lot-meta">
-          剩余 <text class="lot-free">{{ lot.free }}</text> 位 · {{ lot.address }}
-        </view>
+        <view class="lot-meta">{{ lot.area }} · {{ lot.address }}</view>
+        <view class="lot-meta">车位 {{ lot.capacity }} 个</view>
       </view>
-      <view class="lot-right">
-        <text class="lot-distance">{{ lot.distance }}</text>
-        <text class="lot-arrow">›</text>
-      </view>
+      <text class="lot-arrow">›</text>
     </view>
 
-    <view class="footer">P0 骨架 · 数据将在 P4 接入真实接口</view>
+    <view class="footer">P4 已接入真实接口 · 后端 Spring Boot + MySQL</view>
   </view>
 </template>
 
 <script setup lang="ts">
-import { formatDistance } from '@/utils/format'
+import { computed, ref } from 'vue'
+import { onShow } from '@dcloudio/uni-app'
+import { listLots, type Lot } from '@/api'
+import { clearAuth, getStoredUser, getToken } from '@/utils/request'
 
-const entries = [
-  { label: '预约车位', icon: '预', bg: '#E8EFFD', color: '#2563EB' },
-  { label: '导航入场', icon: '导', bg: '#E7F7EE', color: '#16A34A' },
-  { label: '停车记录', icon: '记', bg: '#E8EFFD', color: '#2563EB' },
-  { label: '优惠券', icon: '券', bg: '#FFF2E5', color: '#FF7A00' },
-]
+const lots = ref<Lot[]>([])
+const loggedIn = ref(false)
+const nickname = ref('')
 
-const lots = [
-  { id: 1, name: '科技园停车场', free: 42, address: 'B2 层 · 西区', distance: formatDistance(800) },
-  { id: 2, name: '市民中心停车场', free: 18, address: 'B1 层 · 东区', distance: formatDistance(1250) },
-  { id: 3, name: '万象城地下停车场', free: 6, address: 'B3 层 · 北区', distance: formatDistance(2100) },
-]
+const greeting = computed(() => (loggedIn.value ? nickname.value || '已登录' : '点击登录'))
+const totalSpaces = computed(() => lots.value.reduce((sum, lot) => sum + (lot.capacity || 0), 0))
+
+async function load() {
+  loggedIn.value = Boolean(getToken())
+  if (!loggedIn.value) {
+    lots.value = []
+    return
+  }
+  nickname.value = getStoredUser()?.nickname ?? ''
+  try {
+    const result = await listLots()
+    lots.value = result.records
+  } catch {
+    lots.value = []
+  }
+}
+
+function goLogin() {
+  uni.navigateTo({ url: '/pages/user/login' })
+}
+
+function goOrders() {
+  if (!getToken()) {
+    goLogin()
+    return
+  }
+  uni.navigateTo({ url: '/pages/order/list' })
+}
+
+function openLot(id: number) {
+  if (!getToken()) {
+    goLogin()
+    return
+  }
+  uni.navigateTo({ url: `/pages/lot/detail?id=${id}` })
+}
+
+function onUserTap() {
+  if (loggedIn.value) {
+    uni.showModal({
+      title: '账号',
+      content: `当前账号：${nickname.value || '已登录'}，是否退出登录？`,
+      success: (res) => {
+        if (res.confirm) {
+          clearAuth()
+          void load()
+        }
+      },
+    })
+  } else {
+    goLogin()
+  }
+}
+
+onShow(load)
 </script>
 
 <style lang="scss" scoped>
@@ -77,24 +140,34 @@ const lots = [
   background: $page-bg;
   padding-bottom: 40rpx;
 }
-
 .hero {
   background: $brand-gradient;
-  padding: 96rpx 32rpx 80rpx;
+  padding: 96rpx 32rpx 72rpx;
   border-radius: 0 0 40rpx 40rpx;
   color: #fff;
 }
+.hero-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
 .hero-title {
-  font-size: 60rpx;
+  font-size: 56rpx;
   font-weight: 700;
+}
+.hero-user {
+  font-size: 24rpx;
+  background: rgba(255, 255, 255, 0.2);
+  padding: 8rpx 20rpx;
+  border-radius: 999rpx;
 }
 .hero-sub {
   margin-top: 8rpx;
   font-size: 26rpx;
-  opacity: 0.8;
+  opacity: 0.85;
 }
 .hero-stats {
-  margin-top: 40rpx;
+  margin-top: 36rpx;
   background: rgba(255, 255, 255, 0.14);
   border-radius: 24rpx;
   padding: 24rpx 0;
@@ -106,12 +179,12 @@ const lots = [
   text-align: center;
 }
 .stat-value {
-  font-size: 48rpx;
+  font-size: 40rpx;
   font-weight: 700;
 }
 .stat-label {
   margin-top: 4rpx;
-  font-size: 24rpx;
+  font-size: 22rpx;
   opacity: 0.8;
 }
 .stat-divider {
@@ -119,7 +192,6 @@ const lots = [
   height: 48rpx;
   background: rgba(255, 255, 255, 0.3);
 }
-
 .card {
   background: $card-bg;
   border-radius: $radius-card;
@@ -127,40 +199,49 @@ const lots = [
   margin: 24rpx 32rpx 0;
   padding: 32rpx;
 }
-
-.grid {
+.shortcuts {
   display: flex;
   margin-top: -40rpx;
 }
-.grid-item {
+.shortcut {
   flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
 }
-.grid-icon {
-  width: 96rpx;
-  height: 96rpx;
+.shortcut-icon {
+  width: 92rpx;
+  height: 92rpx;
   border-radius: 24rpx;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 36rpx;
+  font-size: 34rpx;
   font-weight: 600;
 }
-.grid-label {
+.blue {
+  background: #e8effd;
+  color: $brand-primary;
+}
+.orange {
+  background: #fff2e5;
+  color: $amount-orange;
+}
+.green {
+  background: #e7f7ee;
+  color: $success-green;
+}
+.shortcut-label {
   margin-top: 12rpx;
   font-size: 24rpx;
   color: $text-secondary;
 }
-
 .section-title {
   margin: 40rpx 32rpx 0;
   font-size: 32rpx;
   font-weight: 600;
   color: $text-primary;
 }
-
 .lot {
   display: flex;
   align-items: center;
@@ -187,28 +268,29 @@ const lots = [
   color: $text-primary;
 }
 .lot-meta {
-  margin-top: 8rpx;
+  margin-top: 6rpx;
   font-size: 24rpx;
   color: $text-secondary;
 }
-.lot-free {
-  color: $brand-primary;
-  font-weight: 600;
-}
-.lot-right {
-  display: flex;
-  align-items: center;
-}
-.lot-distance {
-  font-size: 24rpx;
-  color: $text-tertiary;
-}
 .lot-arrow {
-  margin-left: 8rpx;
   color: $text-tertiary;
-  font-size: 32rpx;
+  font-size: 36rpx;
 }
-
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20rpx;
+}
+.empty-text {
+  font-size: 26rpx;
+  color: $text-secondary;
+}
+.primary-btn {
+  background: $brand-primary;
+  color: #fff;
+  border-radius: 999rpx;
+}
 .footer {
   margin-top: 40rpx;
   text-align: center;

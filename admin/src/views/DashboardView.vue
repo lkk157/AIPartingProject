@@ -1,128 +1,170 @@
 <template>
-  <el-container class="layout">
-    <el-aside width="220px" class="aside">
-      <div class="brand">智泊停车</div>
-      <el-menu :default-active="'1'" class="menu">
-        <el-menu-item index="1">运营看板</el-menu-item>
-        <el-menu-item index="2">停车场管理</el-menu-item>
-        <el-menu-item index="3">车位管理</el-menu-item>
-        <el-menu-item index="4">预约与订单</el-menu-item>
-        <el-menu-item index="5">知识库管理</el-menu-item>
-      </el-menu>
-    </el-aside>
+  <div class="dashboard">
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">停车场</div>
+        <div class="stat-value">{{ stats.lotCount }}</div>
+        <div class="stat-extra">共 {{ stats.spaceCount }} 个车位</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">空闲车位</div>
+        <div class="stat-value free">{{ stats.freeSpaces }}</div>
+        <div class="stat-extra">占用 {{ stats.occupiedSpaces }}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">今日订单</div>
+        <div class="stat-value">{{ stats.todayOrders }}</div>
+        <div class="stat-extra">待用预约 {{ stats.pendingReservations }}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">今日营收</div>
+        <div class="stat-value amount">{{ formatMoney(stats.todayRevenueCents) }}</div>
+        <div class="stat-extra">已支付合计</div>
+      </div>
+    </div>
 
-    <el-container>
-      <el-header class="header">
-        <span class="title">运营看板</span>
-        <span class="subtitle">P0 骨架 · 数据接入见后续阶段</span>
-      </el-header>
-      <el-main>
-        <el-row :gutter="16">
-          <el-col v-for="card in cards" :key="card.label" :span="6">
-            <el-card shadow="never" class="stat-card">
-              <div class="stat-label">{{ card.label }}</div>
-              <div class="stat-value">{{ card.value }}</div>
-            </el-card>
-          </el-col>
-        </el-row>
+    <div class="panel">
+      <div class="panel-title">车位状态分布</div>
+      <div ref="chartRef" class="chart" />
+    </div>
 
-        <el-card shadow="never" class="panel">
-          <template #header>实时占用率（占位）</template>
-          <div ref="chartRef" class="chart"></div>
-        </el-card>
-      </el-main>
-    </el-container>
-  </el-container>
+    <div class="panel">
+      <div class="panel-title">快捷操作</div>
+      <div class="quick">
+        <el-button type="primary" @click="router.push('/lots')">停车场管理</el-button>
+        <el-button @click="router.push('/reservations')">预约管理</el-button>
+        <el-button @click="router.push('/orders')">订单管理</el-button>
+        <el-button @click="router.push('/users')">用户管理</el-button>
+      </div>
+      <div class="tips">AI 运营分析与问答将在 P7 接入，本页数据全部来自真实接口。</div>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import * as echarts from 'echarts'
-import { formatMoney, formatPercent } from '@/utils/format'
+import { fetchStats } from '@/api/admin'
+import type { Stats } from '@/api/types'
+import { formatMoney } from '@/utils/format'
 
-const cards = [
-  { label: '停车场总数', value: '12' },
-  { label: '空闲车位', value: '128' },
-  { label: '今日订单', value: '36' },
-  { label: '今日收入', value: formatMoney(21600) },
-]
+const router = useRouter()
+const stats = ref<Stats>({
+  lotCount: 0,
+  spaceCount: 0,
+  freeSpaces: 0,
+  occupiedSpaces: 0,
+  todayOrders: 0,
+  todayRevenueCents: 0,
+  pendingReservations: 0,
+})
 
 const chartRef = ref<HTMLDivElement>()
-const occupancy = [0.42, 0.56, 0.71, 0.83, 0.64, 0.48]
+let chart: echarts.ECharts | undefined
 
-onMounted(() => {
+function renderChart() {
   if (!chartRef.value) return
-  const chart = echarts.init(chartRef.value)
+  chart = chart ?? echarts.init(chartRef.value)
+  const rest = Math.max(stats.value.spaceCount - stats.value.freeSpaces - stats.value.occupiedSpaces, 0)
   chart.setOption({
-    grid: { left: 40, right: 16, top: 24, bottom: 28 },
-    xAxis: { type: 'category', data: ['08:00', '10:00', '12:00', '14:00', '16:00', '18:00'] },
-    yAxis: { type: 'value', axisLabel: { formatter: (v: number) => formatPercent(v) }, max: 1 },
+    tooltip: { trigger: 'item' },
+    legend: { bottom: 0 },
     series: [
       {
-        type: 'line',
-        smooth: true,
-        data: occupancy,
-        areaStyle: { opacity: 0.12 },
-        itemStyle: { color: '#2563EB' },
+        type: 'pie',
+        radius: ['45%', '70%'],
+        itemStyle: { borderRadius: 8, borderColor: '#fff', borderWidth: 2 },
+        data: [
+          { value: stats.value.freeSpaces, name: '空闲', itemStyle: { color: '#22c55e' } },
+          { value: stats.value.occupiedSpaces, name: '占用', itemStyle: { color: '#ef4444' } },
+          { value: rest, name: '预约/维护', itemStyle: { color: '#94a3b8' } },
+        ],
       },
     ],
   })
+}
+
+function onResize() {
+  chart?.resize()
+}
+
+onMounted(async () => {
+  try {
+    stats.value = await fetchStats()
+  } finally {
+    renderChart()
+  }
+  window.addEventListener('resize', onResize)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', onResize)
+  chart?.dispose()
 })
 </script>
 
 <style scoped>
-.layout {
-  height: 100vh;
-}
-.aside {
-  background: #fff;
-  border-right: 1px solid var(--divider);
-}
-.brand {
-  height: 56px;
+.dashboard {
   display: flex;
-  align-items: center;
-  padding: 0 20px;
-  font-weight: 700;
-  font-size: 17px;
-  color: var(--brand-primary);
+  flex-direction: column;
+  gap: 16px;
 }
-.menu {
-  border-right: none;
-}
-.header {
-  background: #fff;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  border-bottom: 1px solid var(--divider);
-}
-.title {
-  font-weight: 600;
-}
-.subtitle {
-  color: var(--text-tertiary);
-  font-size: 12px;
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 16px;
 }
 .stat-card {
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-card);
+  background: #fff;
+  border-radius: 14px;
+  padding: 18px 20px;
+  box-shadow: 0 8px 24px rgba(31, 74, 168, 0.06);
 }
 .stat-label {
-  color: var(--text-secondary);
+  color: #64748b;
   font-size: 13px;
+  white-space: nowrap;
 }
 .stat-value {
   margin-top: 8px;
-  font-size: 26px;
+  font-size: 28px;
   font-weight: 700;
+  color: #0f172a;
+}
+.stat-value.free {
+  color: #16a34a;
+}
+.stat-value.amount {
+  color: #ff7a00;
+}
+.stat-extra {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #94a3b8;
 }
 .panel {
-  margin-top: 16px;
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-card);
+  background: #fff;
+  border-radius: 14px;
+  padding: 18px 20px;
+  box-shadow: 0 8px 24px rgba(31, 74, 168, 0.06);
+}
+.panel-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #0f172a;
+  margin-bottom: 12px;
 }
 .chart {
   height: 280px;
+}
+.quick {
+  display: flex;
+  gap: 10px;
+}
+.tips {
+  margin-top: 14px;
+  font-size: 12px;
+  color: #94a3b8;
 }
 </style>

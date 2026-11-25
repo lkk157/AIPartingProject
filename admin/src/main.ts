@@ -5,6 +5,18 @@ import zhCn from 'element-plus/es/locale/lang/zh-cn'
 import 'element-plus/dist/index.css'
 import App from './App.vue'
 import router from './router'
+import { setUnauthorizedHandler } from './api/request'
+import { useAuthStore } from './stores/auth'
 import './styles/tokens.scss'
 
-createApp(App).use(createPinia()).use(router).use(ElementPlus, { locale: zhCn }).mount('#app')
+const app = createApp(App)
+const pinia = createPinia()
+
+app.use(pinia).use(router).use(ElementPlus, { locale: zhCn })
+
+setUnauthorizedHandler(() => {
+  useAuthStore(pinia).logout()
+  void router.replace('/login')
+})
+
+app.mount('#app')

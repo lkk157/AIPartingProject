@@ -13,7 +13,7 @@ public interface ReservationMapper extends BaseMapper<Reservation> {
             SELECT COUNT(1)
             FROM reservation
             WHERE space_id = #{spaceId}
-              AND status IN (0, 1)
+              AND status = 0
               AND start_time < #{endTime}
               AND end_time > #{startTime}
             """)

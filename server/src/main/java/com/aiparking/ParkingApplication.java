@@ -5,7 +5,7 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
-@MapperScan({"com.aiparking.user.mapper", "com.aiparking.parking.mapper", "com.aiparking.billing.mapper"})
+@MapperScan({"com.aiparking.user.mapper", "com.aiparking.parking.mapper", "com.aiparking.billing.mapper", "com.aiparking.admin.mapper"})
 public class ParkingApplication {
 
     public static void main(String[] args) {

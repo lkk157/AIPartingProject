@@ -6,6 +6,24 @@
         "navigationBarTitleText": "智泊停车",
         "navigationStyle": "custom"
       }
+    },
+    {
+      "path": "pages/lot/detail",
+      "style": {
+        "navigationBarTitleText": "停车场详情"
+      }
+    },
+    {
+      "path": "pages/order/list",
+      "style": {
+        "navigationBarTitleText": "我的预约与订单"
+      }
+    },
+    {
+      "path": "pages/user/login",
+      "style": {
+        "navigationBarTitleText": "登录"
+      }
     }
   ],
   "globalStyle": {
