@@ -32,8 +32,8 @@ docs/     开发规划、阶段规范、UI 规范
 ## 快速开始
 
 ```bash
-# 1. 基础设施（MySQL 3306 / Redis 6379）
-cd infra && docker compose up -d
+# 1. 基础设施（MySQL 3307 / Redis 6380，避开本机已占用的 3306/6379）
+cd infra && cp .env.example .env && docker compose up -d
 
 # 2. 后端（http://localhost:8080）
 cd server && ./mvnw spring-boot:run
