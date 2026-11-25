@@ -53,11 +53,21 @@ cd app && npm install && npm run dev:h5
 ## 测试
 
 ```bash
-cd server && ./mvnw test     # JUnit5 + MockMvc
+cd server && ./mvnw test     # JUnit5 + MockMvc（集成测试需 infra 已启动，使用 parking_test 库）
 cd ai && pytest              # pytest
 cd admin && npm test         # vitest
 cd app && npm test           # vitest
 ```
+
+> 后端集成测试依赖 MySQL：本地先 `cd infra && docker compose up -d`；CI 由 GitHub Actions 的 MySQL service container 提供（DB_PORT=3306）。
+
+## 内置账号（开发环境）
+
+| 账号 | 密码 | 角色 |
+|---|---|---|
+| admin | admin123 | SYS_ADMIN（系统管理员） |
+
+> 通过 `app.init-admin.enabled=false` 可关闭自动初始化；生产环境必须关闭并修改密码。
 
 ## 文档
 
