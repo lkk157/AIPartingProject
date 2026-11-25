@@ -72,7 +72,7 @@ public class ParkingFlowService {
             throw new BusinessException("车位不属于该停车场");
         }
 
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
         Reservation reservation = null;
         if (request.getReservationId() != null) {
             reservation = reservationMapper.selectById(request.getReservationId());
@@ -137,7 +137,10 @@ public class ParkingFlowService {
         }
 
         ParkingFeeRule rule = feeRuleService.requireEnabledRule(record.getLotId());
-        LocalDateTime exitTime = LocalDateTime.now();
+        LocalDateTime exitTime = LocalDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
+        if (exitTime.isBefore(record.getEntryTime())) {
+            exitTime = record.getEntryTime();
+        }
         BillingResult billing = FeeCalculator.calculate(record.getEntryTime(), exitTime, rule);
 
         if (recordMapper.markExited(recordId, exitTime) == 0) {
@@ -176,8 +179,10 @@ public class ParkingFlowService {
             return null;
         }
 
+        // MySQL DATETIME 无小数秒，毫秒进位可能让入库时间比"现在"晚不到 1 秒，这里做兜底
         LocalDateTime now = LocalDateTime.now();
-        long elapsed = Math.max(Duration.between(record.getEntryTime(), now).toMinutes(), 0);
+        LocalDateTime effectiveNow = now.isBefore(record.getEntryTime()) ? record.getEntryTime() : now;
+        long elapsed = Math.max(Duration.between(record.getEntryTime(), effectiveNow).toMinutes(), 0);
         String lotName = parkingLotService.listNamesByIds(List.of(record.getLotId())).get(record.getLotId());
         ParkingSpace space = spaceMapper.selectById(record.getSpaceId());
         ParkingFeeRule rule = feeRuleService.findEnabledRule(record.getLotId());
@@ -185,7 +190,7 @@ public class ParkingFlowService {
         Integer estimated = null;
         boolean freeApplied = false;
         if (rule != null) {
-            BillingResult billing = FeeCalculator.calculate(record.getEntryTime(), now, rule);
+            BillingResult billing = FeeCalculator.calculate(record.getEntryTime(), effectiveNow, rule);
             estimated = billing.amountCents();
             freeApplied = billing.freeApplied();
         }

@@ -20,6 +20,7 @@ const router = createRouter({
         { path: 'users', name: 'users', component: () => import('@/views/UsersView.vue'), meta: { title: '用户管理' } },
         { path: 'orders', name: 'orders', component: () => import('@/views/OrdersView.vue'), meta: { title: '订单管理' } },
         { path: 'reservations', name: 'reservations', component: () => import('@/views/ReservationsView.vue'), meta: { title: '预约管理' } },
+        { path: 'predict', name: 'predict', component: () => import('@/views/PredictView.vue'), meta: { title: 'AI 占用率预测' } },
       ],
     },
     { path: '/:pathMatch(.*)*', redirect: '/' },
