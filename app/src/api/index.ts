@@ -14,6 +14,27 @@ export interface Lot {
   area: string
   capacity: number
   status: number
+  freeCount?: number
+  priceFromCents?: number | null
+}
+
+export interface FeeRule {
+  id: number
+  ruleName: string
+  freeMinutes: number
+  firstHourCents: number
+  extraPerHourCents: number
+  dailyCapCents: number
+}
+
+export interface LotDetail {
+  lot: Lot
+  spaceCount: number
+  freeCount: number
+  occupiedCount: number
+  reservedCount: number
+  maintenanceCount: number
+  enabledRule: FeeRule | null
 }
 
 export interface Space {
@@ -29,6 +50,7 @@ export interface Space {
 export interface Reservation {
   id: number
   lotId: number
+  lotName?: string
   spaceId: number
   spaceNo?: string
   startTime: string
@@ -41,12 +63,29 @@ export interface Order {
   id: number
   orderNo: string
   lotId: number
+  lotName?: string
+  spaceNo?: string
   amountCents: number
   billedMinutes: number
+  freeApplied?: number
   status: number
   statusText: string
   paidAt?: string
   createdAt: string
+}
+
+export interface CurrentParking {
+  recordId: number
+  lotId: number
+  lotName: string
+  spaceId: number
+  spaceNo: string
+  plateNo: string
+  entryTime: string
+  elapsedMinutes: number
+  estimatedCents: number | null
+  freeApplied: boolean
+  ruleMissing: boolean
 }
 
 export async function login(username: string, password: string): Promise<UserInfo> {
@@ -60,12 +99,13 @@ export async function register(username: string, password: string): Promise<void
   await http.post<UserInfo>('/api/auth/register', { username, password })
 }
 
-export function listLots(keyword?: string): Promise<PageResult<Lot>> {
-  return http.get<PageResult<Lot>>('/api/lots', { page: 1, size: 50, keyword })
+export function listLots(params: { keyword?: string; area?: string } = {}): Promise<PageResult<Lot>> {
+  const query = toQuery({ page: 1, size: 50, keyword: params.keyword, area: params.area })
+  return http.get<PageResult<Lot>>(`/api/lots?${query}`)
 }
 
-export function getLotDetail(lotId: number): Promise<{ lot: Lot; freeCount: number; spaceCount: number }> {
-  return http.get(`/api/lots/${lotId}`)
+export function getLotDetail(lotId: number): Promise<LotDetail> {
+  return http.get<LotDetail>(`/api/lots/${lotId}`)
 }
 
 export function listSpaces(lotId: number, status?: number): Promise<Space[]> {
@@ -97,6 +137,10 @@ export function entryParking(payload: {
   reservationId?: number
 }): Promise<{ id: number; statusText: string }> {
   return http.post('/api/parking/entry', { ...payload })
+}
+
+export function currentParking(): Promise<CurrentParking | null> {
+  return http.get<CurrentParking | null>('/api/parking/current')
 }
 
 export function exitParking(recordId: number): Promise<Order> {

@@ -1,17 +1,71 @@
-/* 设计 Token —— 与 docs/前端UI规范.md 保持一致 */
-$brand-gradient: linear-gradient(160deg, #3b7bf7 0%, #1d5be0 55%, #1a4fd0 100%);
-$brand-primary: #2563eb;
+/* 设计 Token —— 玻璃拟态主题（与 docs/前端UI规范.md 对齐） */
+
+/* 背景与光晕 */
+$bg-gradient: linear-gradient(165deg, #eef3ff 0%, #f7f4ff 42%, #eef7fb 100%);
+$aurora-blue: rgba(58, 123, 255, 0.42);
+$aurora-violet: rgba(139, 92, 246, 0.34);
+$aurora-cyan: rgba(45, 212, 191, 0.28);
+
+/* 品牌色 */
+$brand-primary: #2f6bff;
 $brand-primary-deep: #1d4ed8;
-$page-bg: #f4f6fa;
-$card-bg: #ffffff;
-$text-primary: #111827;
-$text-secondary: #6b7280;
-$text-tertiary: #9ca3af;
-$amount-orange: #ff7a00;
-$success-green: #16a34a;
+$brand-violet: #7c5cff;
+$brand-gradient: linear-gradient(135deg, #4b7dff 0%, #6a5bff 55%, #8b5cf6 100%);
+$brand-gradient-soft: linear-gradient(135deg, rgba(75, 125, 255, 0.16), rgba(139, 92, 246, 0.14));
+
+/* 玻璃面 */
+$glass-bg: rgba(255, 255, 255, 0.62);
+$glass-bg-strong: rgba(255, 255, 255, 0.78);
+$glass-border: rgba(255, 255, 255, 0.72);
+$glass-shadow: 0 16rpx 46rpx rgba(28, 45, 90, 0.1);
+$glass-shadow-hover: 0 22rpx 60rpx rgba(28, 45, 90, 0.16);
+
+/* 文本 */
+$text-primary: #10162b;
+$text-secondary: #5b6478;
+$text-tertiary: #8b93a7;
+$text-inverse: #ffffff;
+
+/* 语义色 */
+$amount-orange: #ff7a2f;
+$success-green: #12b76a;
+$warning-amber: #f59e0b;
+$danger-red: #f04438;
 $status-free: #22c55e;
-$status-selected: #2563eb;
-$status-taken: #c4c8d0;
-$divider: #f0f2f5;
+$status-selected: #2f6bff;
+
+/* 尺寸 */
 $radius-card: 32rpx;
-$shadow-card: 0 8rpx 32rpx rgba(31, 74, 168, 0.06);
+$radius-pill: 999rpx;
+$page-bg: #f3f6fd;
+$divider: rgba(16, 22, 43, 0.06);
+
+/* 玻璃卡片 mixin（backdrop-filter 单位必须用 px） */
+@mixin glass($bg: $glass-bg, $radius: $radius-card) {
+  background: $bg;
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  border: 1rpx solid $glass-border;
+  border-radius: $radius;
+  box-shadow: $glass-shadow;
+}
+
+@mixin glass-strong($radius: $radius-card) {
+  @include glass($glass-bg-strong, $radius);
+  box-shadow: $glass-shadow-hover;
+}
+
+@mixin pill-chip($active: false) {
+  padding: 12rpx 28rpx;
+  border-radius: $radius-pill;
+  font-size: 24rpx;
+  @if $active {
+    background: $brand-gradient;
+    color: #fff;
+    box-shadow: 0 10rpx 24rpx rgba(79, 108, 255, 0.32);
+  } @else {
+    background: rgba(255, 255, 255, 0.55);
+    color: $text-secondary;
+    border: 1rpx solid rgba(255, 255, 255, 0.7);
+  }
+}

@@ -10,6 +10,10 @@ public record LotVO(
         Integer capacity,
         Integer status,
         String description,
+        /** 当前空闲车位数 */
+        Integer freeCount,
+        /** 首小时价格（分），未配置规则时为 null */
+        Integer priceFromCents,
         LocalDateTime createdAt
 ) {
 }

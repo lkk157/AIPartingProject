@@ -1,5 +1,6 @@
 package com.aiparking.billing.controller;
 
+import com.aiparking.billing.dto.CurrentParkingVO;
 import com.aiparking.billing.dto.EntryRequest;
 import com.aiparking.billing.dto.OrderVO;
 import com.aiparking.billing.dto.RecordVO;
@@ -39,5 +40,10 @@ public class ParkingController {
     @GetMapping("/records")
     public ApiResponse<List<RecordVO>> records() {
         return ApiResponse.ok(parkingFlowService.listRecords(UserContext.currentUserId()));
+    }
+
+    @GetMapping("/current")
+    public ApiResponse<CurrentParkingVO> current() {
+        return ApiResponse.ok(parkingFlowService.current(UserContext.currentUserId()));
     }
 }

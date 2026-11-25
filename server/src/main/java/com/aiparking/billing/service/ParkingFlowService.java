@@ -2,6 +2,7 @@ package com.aiparking.billing.service;
 
 import com.aiparking.billing.BillingResult;
 import com.aiparking.billing.FeeCalculator;
+import com.aiparking.billing.dto.CurrentParkingVO;
 import com.aiparking.billing.dto.EntryRequest;
 import com.aiparking.billing.dto.OrderVO;
 import com.aiparking.billing.dto.RecordVO;
@@ -27,6 +28,7 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -163,6 +165,36 @@ public class ParkingFlowService {
         return toVO(order);
     }
 
+    /** 当前进行中的停车（无则返回 null） */
+    public CurrentParkingVO current(Long userId) {
+        ParkingRecord record = recordMapper.selectOne(Wrappers.<ParkingRecord>lambdaQuery()
+                .eq(ParkingRecord::getUserId, userId)
+                .eq(ParkingRecord::getStatus, 0)
+                .orderByDesc(ParkingRecord::getEntryTime)
+                .last("LIMIT 1"));
+        if (record == null) {
+            return null;
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        long elapsed = Math.max(Duration.between(record.getEntryTime(), now).toMinutes(), 0);
+        String lotName = parkingLotService.listNamesByIds(List.of(record.getLotId())).get(record.getLotId());
+        ParkingSpace space = spaceMapper.selectById(record.getSpaceId());
+        ParkingFeeRule rule = feeRuleService.findEnabledRule(record.getLotId());
+
+        Integer estimated = null;
+        boolean freeApplied = false;
+        if (rule != null) {
+            BillingResult billing = FeeCalculator.calculate(record.getEntryTime(), now, rule);
+            estimated = billing.amountCents();
+            freeApplied = billing.freeApplied();
+        }
+
+        return new CurrentParkingVO(record.getId(), record.getLotId(), lotName, record.getSpaceId(),
+                space == null ? null : space.getSpaceNo(), record.getPlateNo(), record.getEntryTime(),
+                elapsed, estimated, freeApplied, rule == null);
+    }
+
     public List<RecordVO> listRecords(Long userId) {
         return recordMapper.selectList(Wrappers.<ParkingRecord>lambdaQuery()
                         .eq(ParkingRecord::getUserId, userId)
@@ -183,9 +215,13 @@ public class ParkingFlowService {
     }
 
     public static OrderVO toVO(ParkingOrder order) {
+        return toVO(order, null, null);
+    }
+
+    public static OrderVO toVO(ParkingOrder order, String lotName, String spaceNo) {
         OrderStatus status = OrderStatus.fromCode(order.getStatus());
-        return new OrderVO(order.getId(), order.getOrderNo(), order.getLotId(), order.getAmountCents(),
-                order.getBilledMinutes(), order.getFreeApplied(), status.getCode(), status.getText(),
-                order.getPaidAt(), order.getCreatedAt());
+        return new OrderVO(order.getId(), order.getOrderNo(), order.getLotId(), lotName, spaceNo,
+                order.getAmountCents(), order.getBilledMinutes(), order.getFreeApplied(),
+                status.getCode(), status.getText(), order.getPaidAt(), order.getCreatedAt());
     }
 }

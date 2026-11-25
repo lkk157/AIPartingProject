@@ -5,6 +5,8 @@ import java.time.LocalDateTime;
 public record ReservationVO(
         Long id,
         Long lotId,
+        /** 列表场景补充 */
+        String lotName,
         Long spaceId,
         String spaceNo,
         LocalDateTime startTime,

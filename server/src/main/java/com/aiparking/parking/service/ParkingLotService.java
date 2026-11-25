@@ -5,6 +5,7 @@ import com.aiparking.common.NotFoundException;
 import com.aiparking.common.PageResult;
 import com.aiparking.parking.dto.FeeRuleVO;
 import com.aiparking.parking.dto.LotDetailVO;
+import com.aiparking.parking.dto.LotSpaceStat;
 import com.aiparking.parking.dto.LotRequest;
 import com.aiparking.parking.dto.LotVO;
 import com.aiparking.parking.entity.ParkingFeeRule;
@@ -20,7 +21,9 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class ParkingLotService {
@@ -56,7 +59,24 @@ public class ParkingLotService {
         query.orderByDesc(ParkingLot::getId);
 
         Page<ParkingLot> result = lotMapper.selectPage(new Page<>(safePage, safeSize), query);
-        List<LotVO> records = result.getRecords().stream().map(ParkingLotService::toVO).toList();
+        List<ParkingLot> lots = result.getRecords();
+
+        Map<Long, Integer> freeCounts = new HashMap<>();
+        Map<Long, Integer> prices = new HashMap<>();
+        if (!lots.isEmpty()) {
+            List<Long> lotIds = lots.stream().map(ParkingLot::getId).toList();
+            for (LotSpaceStat stat : spaceMapper.statByLots(lotIds)) {
+                freeCounts.put(stat.lotId(), stat.free() == null ? 0 : stat.free().intValue());
+            }
+            feeRuleMapper.selectList(Wrappers.<ParkingFeeRule>lambdaQuery()
+                            .in(ParkingFeeRule::getLotId, lotIds)
+                            .eq(ParkingFeeRule::getEnabled, 1))
+                    .forEach(rule -> prices.putIfAbsent(rule.getLotId(), rule.getFirstHourCents()));
+        }
+
+        List<LotVO> records = lots.stream()
+                .map(lot -> toVO(lot, freeCounts.getOrDefault(lot.getId(), 0), prices.get(lot.getId())))
+                .toList();
         return PageResult.of(result.getTotal(), result.getCurrent(), result.getSize(), records);
     }
 
@@ -95,10 +115,11 @@ public class ParkingLotService {
                 .orderByDesc(ParkingFeeRule::getId)
                 .last("LIMIT 1"));
 
+        long freeCount = spaceMapper.countByLotAndStatus(id, SpaceStatus.FREE.getCode());
         return new LotDetailVO(
-                toVO(lot),
+                toVO(lot, (int) freeCount, enabledRule == null ? null : enabledRule.getFirstHourCents()),
                 spaceMapper.countByLot(id),
-                spaceMapper.countByLotAndStatus(id, SpaceStatus.FREE.getCode()),
+                freeCount,
                 spaceMapper.countByLotAndStatus(id, SpaceStatus.OCCUPIED.getCode()),
                 spaceMapper.countByLotAndStatus(id, SpaceStatus.RESERVED.getCode()),
                 spaceMapper.countByLotAndStatus(id, SpaceStatus.MAINTENANCE.getCode()),
@@ -134,6 +155,15 @@ public class ParkingLotService {
         return lot;
     }
 
+    /** 批量取停车场名称，供其他模块拼装展示字段 */
+    public Map<Long, String> listNamesByIds(List<Long> lotIds) {
+        if (lotIds == null || lotIds.isEmpty()) {
+            return Map.of();
+        }
+        return lotMapper.selectBatchIds(lotIds).stream()
+                .collect(java.util.stream.Collectors.toMap(ParkingLot::getId, ParkingLot::getName, (a, b) -> a));
+    }
+
     private void apply(ParkingLot lot, LotRequest request) {
         lot.setName(request.getName());
         lot.setAddress(request.getAddress());
@@ -142,7 +172,12 @@ public class ParkingLotService {
     }
 
     static LotVO toVO(ParkingLot lot) {
+        return toVO(lot, 0, null);
+    }
+
+    static LotVO toVO(ParkingLot lot, Integer freeCount, Integer priceFromCents) {
         return new LotVO(lot.getId(), lot.getName(), lot.getAddress(), lot.getArea(),
-                lot.getCapacity(), lot.getStatus(), lot.getDescription(), lot.getCreatedAt());
+                lot.getCapacity(), lot.getStatus(), lot.getDescription(),
+                freeCount, priceFromCents, lot.getCreatedAt());
     }
 }

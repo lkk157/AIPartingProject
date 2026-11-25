@@ -1,43 +1,76 @@
 <template>
   <view class="page">
-    <view class="tabs">
-      <view class="tab" :class="{ active: tab === 0 }" @click="tab = 0">我的预约</view>
-      <view class="tab" :class="{ active: tab === 1 }" @click="tab = 1">我的订单</view>
+    <view class="aurora" />
+    <view class="content">
+      <view class="segment glass">
+        <view class="seg-item" :class="{ active: tab === 0 }" @click="tab = 0">
+          预约 <text class="seg-count">{{ reservations.length }}</text>
+        </view>
+        <view class="seg-item" :class="{ active: tab === 1 }" @click="tab = 1">
+          订单 <text class="seg-count">{{ orders.length }}</text>
+        </view>
+      </view>
+
+      <block v-if="tab === 0">
+        <view v-if="reservations.length === 0" class="glass state">
+          <text class="state-title">还没有预约</text>
+          <text class="state-desc">去首页找个车位，提前锁定位置</text>
+          <view class="state-btn" @click="goHome">去找车位</view>
+        </view>
+
+        <view v-for="item in reservations" :key="item.id" class="card glass">
+          <view class="card-head">
+            <text class="card-title">{{ item.lotName || '停车场' }}</text>
+            <text class="badge" :style="{ color: reservationStatusColor(item.status) }">{{ item.statusText }}</text>
+          </view>
+          <view class="card-sub">车位 {{ item.spaceNo || '-' }}</view>
+          <view class="time-row">
+            <view class="time-block">
+              <text class="t-label">开始</text>
+              <text class="t-value">{{ readable(item.startTime) }}</text>
+            </view>
+            <text class="t-arrow">→</text>
+            <view class="time-block">
+              <text class="t-label">结束</text>
+              <text class="t-value">{{ timeOnly(item.endTime) }}</text>
+            </view>
+          </view>
+          <view v-if="item.status === 0" class="card-actions">
+            <view class="mini ghost" @click="onCancel(item.id)">取消预约</view>
+          </view>
+        </view>
+      </block>
+
+      <block v-else>
+        <view v-if="orders.length === 0" class="glass state">
+          <text class="state-title">还没有订单</text>
+          <text class="state-desc">停车离场后会自动生成账单</text>
+        </view>
+
+        <view v-for="order in orders" :key="order.id" class="card glass">
+          <view class="card-head">
+            <text class="card-title">{{ order.lotName || '停车场' }}</text>
+            <text class="badge" :style="{ color: orderStatusColor(order.status) }">{{ order.statusText }}</text>
+          </view>
+          <view class="card-sub">车位 {{ order.spaceNo || '-' }} · 停车 {{ formatDuration(order.billedMinutes) }}</view>
+          <view class="amount-row">
+            <text class="amount">{{ formatMoney(order.amountCents) }}</text>
+            <text v-if="order.status === 0" class="amount-tip">待支付</text>
+            <text v-else-if="order.status === 1" class="amount-tip paid">已完成</text>
+          </view>
+          <view class="card-actions">
+            <view v-if="order.status === 0" class="mini primary" @click="onPay(order.id)">立即支付</view>
+          </view>
+          <view class="order-no">订单号 {{ order.orderNo }}</view>
+        </view>
+      </block>
     </view>
-
-    <block v-if="tab === 0">
-      <view v-if="reservations.length === 0" class="card empty">暂无预约记录</view>
-      <view v-for="item in reservations" :key="item.id" class="card item">
-        <view class="item-top">
-          <view class="item-title">车位 {{ item.spaceNo || item.spaceId }}</view>
-          <text class="status" :style="{ color: reservationStatusColor(item.status) }">{{ item.statusText }}</text>
-        </view>
-        <view class="item-meta">{{ formatRange(item.startTime, item.endTime) }}</view>
-        <view class="item-actions">
-          <button v-if="item.status === 0" class="mini ghost" size="mini" @click="onCancel(item.id)">取消预约</button>
-        </view>
-      </view>
-    </block>
-
-    <block v-else>
-      <view v-if="orders.length === 0" class="card empty">暂无订单</view>
-      <view v-for="order in orders" :key="order.id" class="card item">
-        <view class="item-top">
-          <view class="item-title">{{ order.orderNo }}</view>
-          <text class="status" :style="{ color: orderStatusColor(order.status) }">{{ order.statusText }}</text>
-        </view>
-        <view class="item-meta">金额 {{ formatMoney(order.amountCents) }} · 计费 {{ formatDuration(order.billedMinutes) }}</view>
-        <view class="item-actions">
-          <button v-if="order.status === 0" class="mini primary" size="mini" @click="onPay(order.id)">立即支付</button>
-        </view>
-      </view>
-    </block>
   </view>
 </template>
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { onShow } from '@dcloudio/uni-app'
+import { onLoad, onShow } from '@dcloudio/uni-app'
 import {
   cancelReservation,
   listOrders,
@@ -53,9 +86,16 @@ const tab = ref(0)
 const reservations = ref<Reservation[]>([])
 const orders = ref<Order[]>([])
 
-function formatRange(start: string, end: string): string {
-  const format = (value: string, from: number, to: number) => value.replace('T', ' ').slice(from, to)
-  return `${format(start, 5, 16)} ~ ${format(end, 11, 16)}`
+function readable(iso: string): string {
+  return iso.replace('T', ' ').slice(5, 16)
+}
+
+function timeOnly(iso: string): string {
+  return iso.replace('T', ' ').slice(11, 16)
+}
+
+function goHome() {
+  uni.reLaunch({ url: '/pages/index/index' })
 }
 
 async function load() {
@@ -70,13 +110,20 @@ async function load() {
 }
 
 async function onCancel(id: number) {
-  try {
-    await cancelReservation(id)
-    uni.showToast({ title: '已取消', icon: 'success' })
-    await load()
-  } catch {
-    // 已统一提示
-  }
+  uni.showModal({
+    title: '取消预约',
+    content: '确认取消该预约？车位会释放给其他车主。',
+    success: async (res) => {
+      if (!res.confirm) return
+      try {
+        await cancelReservation(id)
+        uni.showToast({ title: '已取消', icon: 'success' })
+        await load()
+      } catch {
+        // 统一提示
+      }
+    },
+  })
 }
 
 async function onPay(id: number) {
@@ -85,9 +132,14 @@ async function onPay(id: number) {
     uni.showToast({ title: '支付成功', icon: 'success' })
     await load()
   } catch {
-    // 已统一提示
+    // 统一提示
   }
 }
+
+onLoad((query) => {
+  const initial = Number(query?.tab ?? 0)
+  tab.value = initial === 1 ? 1 : 0
+})
 
 onShow(load)
 </script>
@@ -97,74 +149,155 @@ onShow(load)
 
 .page {
   min-height: 100vh;
-  background: $page-bg;
-  padding-bottom: 40rpx;
+  padding: 24rpx 32rpx 60rpx;
 }
-.tabs {
+
+/* 分段控件 */
+.segment {
   display: flex;
-  background: #fff;
-  padding: 12rpx 32rpx;
-  gap: 20rpx;
+  padding: 8rpx;
+  border-radius: $radius-pill;
 }
-.tab {
+.seg-item {
   flex: 1;
   text-align: center;
-  padding: 16rpx 0;
+  padding: 18rpx 0;
+  border-radius: $radius-pill;
   font-size: 28rpx;
   color: $text-secondary;
-  border-radius: 16rpx;
 }
-.tab.active {
-  background: #e8effd;
-  color: $brand-primary;
+.seg-item.active {
+  background: $brand-gradient;
+  color: #fff;
   font-weight: 600;
+  box-shadow: 0 10rpx 24rpx rgba(79, 108, 255, 0.28);
 }
+.seg-count {
+  font-size: 20rpx;
+  margin-left: 6rpx;
+  opacity: 0.8;
+}
+
+/* 卡片 */
 .card {
-  background: $card-bg;
-  border-radius: $radius-card;
-  box-shadow: $shadow-card;
-  margin: 24rpx 32rpx 0;
-  padding: 28rpx 32rpx;
+  margin-top: 20rpx;
+  padding: 28rpx 30rpx;
 }
-.item-top {
+.card-head {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  justify-content: space-between;
 }
-.item-title {
-  font-size: 28rpx;
+.card-title {
+  font-size: 30rpx;
   font-weight: 600;
   color: $text-primary;
 }
-.status {
+.badge {
   font-size: 24rpx;
   font-weight: 600;
 }
-.item-meta {
-  margin-top: 10rpx;
+.card-sub {
+  margin-top: 8rpx;
   font-size: 24rpx;
   color: $text-secondary;
 }
-.item-actions {
+.time-row {
+  margin-top: 20rpx;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(47, 107, 255, 0.06);
+  border-radius: 20rpx;
+  padding: 18rpx 24rpx;
+}
+.time-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4rpx;
+}
+.t-label {
+  font-size: 20rpx;
+  color: $text-tertiary;
+}
+.t-value {
+  font-size: 26rpx;
+  color: $text-primary;
+  font-weight: 500;
+}
+.t-arrow {
+  color: $brand-primary;
+  font-size: 26rpx;
+}
+.amount-row {
+  margin-top: 18rpx;
+  display: flex;
+  align-items: baseline;
+  gap: 12rpx;
+}
+.amount {
+  font-size: 40rpx;
+  font-weight: 700;
+  color: $amount-orange;
+}
+.amount-tip {
+  font-size: 22rpx;
+  color: $warning-amber;
+}
+.amount-tip.paid {
+  color: $success-green;
+}
+.card-actions {
+  margin-top: 18rpx;
   display: flex;
   justify-content: flex-end;
-  margin-top: 16rpx;
+  gap: 14rpx;
 }
 .mini {
-  border-radius: 999rpx;
+  padding: 12rpx 30rpx;
+  border-radius: $radius-pill;
   font-size: 24rpx;
+  font-weight: 600;
 }
 .mini.primary {
-  background: $brand-primary;
+  background: $brand-gradient;
   color: #fff;
 }
 .mini.ghost {
-  background: #f1f5f9;
+  background: rgba(255, 255, 255, 0.7);
+  color: $text-secondary;
+  border: 1rpx solid rgba(16, 22, 43, 0.08);
+}
+.order-no {
+  margin-top: 16rpx;
+  font-size: 20rpx;
+  color: $text-tertiary;
+}
+
+/* 空态 */
+.state {
+  margin-top: 24rpx;
+  padding: 70rpx 40rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12rpx;
+}
+.state-title {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: $text-primary;
+}
+.state-desc {
+  font-size: 24rpx;
   color: $text-secondary;
 }
-.empty {
-  text-align: center;
-  color: $text-tertiary;
+.state-btn {
+  margin-top: 18rpx;
+  padding: 16rpx 46rpx;
+  border-radius: $radius-pill;
+  background: $brand-gradient;
+  color: #fff;
   font-size: 26rpx;
 }
 </style>

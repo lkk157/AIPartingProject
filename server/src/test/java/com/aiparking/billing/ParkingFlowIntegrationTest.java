@@ -198,6 +198,57 @@ class ParkingFlowIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void should_expose_current_parking_and_enrich_order_and_lot_list() throws Exception {
+        long lotId = createLotWithSpaces(1);
+        long spaceId = firstSpaceId(lotId);
+        String userToken = registerUser();
+
+        MvcResult entryResult = mockMvc.perform(post("/api/parking/entry")
+                        .header("Authorization", "Bearer " + userToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"lotId":%d,"spaceId":%d,"plateNo":"粤B66666"}
+                                """.formatted(lotId, spaceId)))
+                .andExpect(status().isOk())
+                .andReturn();
+        long recordId = json(entryResult).path("data").path("id").asLong();
+
+        mockMvc.perform(get("/api/parking/current")
+                        .header("Authorization", "Bearer " + userToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.recordId").value(recordId))
+                .andExpect(jsonPath("$.data.lotName").exists())
+                .andExpect(jsonPath("$.data.spaceNo").exists())
+                .andExpect(jsonPath("$.data.estimatedCents").isNumber())
+                .andExpect(jsonPath("$.data.elapsedMinutes").isNumber());
+
+        mockMvc.perform(post("/api/parking/records/{recordId}/exit", recordId)
+                        .header("Authorization", "Bearer " + userToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.amountCents").value(0));
+
+        MvcResult currentAfterExit = mockMvc.perform(get("/api/parking/current")
+                        .header("Authorization", "Bearer " + userToken))
+                .andExpect(status().isOk())
+                .andReturn();
+        JsonNode currentNode = json(currentAfterExit).path("data");
+        assertThat(currentNode.isNull() || currentNode.isMissingNode()).isTrue();
+
+        mockMvc.perform(get("/api/orders")
+                        .header("Authorization", "Bearer " + userToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.records[0].lotName").exists())
+                .andExpect(jsonPath("$.data.records[0].spaceNo").exists());
+
+        mockMvc.perform(get("/api/lots")
+                        .param("size", "50")
+                        .header("Authorization", "Bearer " + userToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.records[0].freeCount").isNumber())
+                .andExpect(jsonPath("$.data.records[0].priceFromCents").isNumber());
+    }
+
+    @Test
     void should_release_space_after_reservation_cancelled() throws Exception {
         long lotId = createLotWithSpaces(1);
         long spaceId = firstSpaceId(lotId);

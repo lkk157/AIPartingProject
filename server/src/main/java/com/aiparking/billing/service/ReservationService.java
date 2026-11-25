@@ -89,7 +89,7 @@ public class ReservationService {
             throw new BusinessException("该时段已被预约");
         }
 
-        return toVO(reservation, space.getSpaceNo());
+        return toVO(reservation, lot.getName(), space.getSpaceNo());
     }
 
     @Transactional
@@ -133,14 +133,17 @@ public class ReservationService {
         List<Long> spaceIds = reservations.stream().map(Reservation::getSpaceId).distinct().toList();
         Map<Long, String> spaceNos = spaceMapper.selectBatchIds(spaceIds).stream()
                 .collect(Collectors.toMap(ParkingSpace::getId, ParkingSpace::getSpaceNo, (a, b) -> a));
+        List<Long> lotIds = reservations.stream().map(Reservation::getLotId).distinct().toList();
+        Map<Long, String> lotNames = parkingLotService.listNamesByIds(lotIds);
         return reservations.stream()
-                .map(r -> toVO(r, spaceNos.get(r.getSpaceId())))
+                .map(r -> toVO(r, lotNames.get(r.getLotId()), spaceNos.get(r.getSpaceId())))
                 .collect(Collectors.toList());
     }
 
-    private static ReservationVO toVO(Reservation reservation, String spaceNo) {
+    private static ReservationVO toVO(Reservation reservation, String lotName, String spaceNo) {
         ReservationStatus status = ReservationStatus.fromCode(reservation.getStatus());
-        return new ReservationVO(reservation.getId(), reservation.getLotId(), reservation.getSpaceId(), spaceNo,
+        return new ReservationVO(reservation.getId(), reservation.getLotId(), lotName,
+                reservation.getSpaceId(), spaceNo,
                 reservation.getStartTime(), reservation.getEndTime(), status.getCode(), status.getText(),
                 reservation.getCreatedAt());
     }

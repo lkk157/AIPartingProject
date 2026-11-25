@@ -1,48 +1,57 @@
 <template>
   <view class="page">
-    <view class="card">
-      <view class="title">{{ mode === 'login' ? '登录智泊停车' : '注册新账号' }}</view>
-      <view class="subtitle">登录后即可预约车位、查看订单</view>
-
-      <view class="field">
-        <text class="label">用户名</text>
-        <input v-model="username" class="input" placeholder="4-20 位字母/数字/下划线" />
-      </view>
-      <view class="field">
-        <text class="label">密码</text>
-        <input v-model="password" class="input" password placeholder="6-32 位" />
+    <view class="aurora" />
+    <view class="content">
+      <view class="brand">
+        <view class="brand-orb">P</view>
+        <text class="brand-name">智泊停车</text>
+        <text class="brand-slogan">找位 · 预约 · 无感支付</text>
       </view>
 
-      <button class="primary-btn" :loading="loading" @click="submit">
-        {{ mode === 'login' ? '登录' : '注册并登录' }}
-      </button>
-      <view class="switch" @click="toggleMode">
-        {{ mode === 'login' ? '没有账号？去注册' : '已有账号？去登录' }}
+      <view class="card glass">
+        <view class="tabs">
+          <view class="tab" :class="{ active: mode === 'login' }" @click="mode = 'login'">登录</view>
+          <view class="tab" :class="{ active: mode === 'register' }" @click="mode = 'register'">注册</view>
+        </view>
+
+        <view class="field">
+          <text class="label">用户名</text>
+          <input v-model="username" class="input" placeholder="4-20 位字母/数字/下划线" />
+        </view>
+        <view class="field">
+          <text class="label">密码</text>
+          <input v-model="password" class="input" password placeholder="6-32 位" />
+        </view>
+
+        <view class="submit" :class="{ loading }" @click="submit">
+          {{ loading ? '处理中…' : mode === 'login' ? '登录' : '注册并登录' }}
+        </view>
+
+        <view class="switch" @click="mode = mode === 'login' ? 'register' : 'login'">
+          {{ mode === 'login' ? '没有账号？立即注册' : '已有账号？返回登录' }}
+        </view>
       </view>
+
+      <view class="hint">演示账号 admin / admin123 · 或注册普通车主账号</view>
     </view>
-
-    <view class="hint">开发环境可用 admin / admin123，或自行注册普通车主账号。</view>
   </view>
 </template>
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { register, login } from '@/api'
+import { login, register } from '@/api'
 
 const mode = ref<'login' | 'register'>('login')
 const username = ref('')
 const password = ref('')
 const loading = ref(false)
 
-function toggleMode() {
-  mode.value = mode.value === 'login' ? 'register' : 'login'
-}
-
 async function submit() {
   if (!username.value || !password.value) {
     uni.showToast({ title: '请输入用户名和密码', icon: 'none' })
     return
   }
+  if (loading.value) return
   loading.value = true
   try {
     if (mode.value === 'register') {
@@ -64,54 +73,98 @@ async function submit() {
 
 .page {
   min-height: 100vh;
-  background: $page-bg;
-  padding: 60rpx 32rpx;
+  padding: 120rpx 40rpx 60rpx;
 }
-.card {
-  background: #fff;
-  border-radius: $radius-card;
-  box-shadow: $shadow-card;
-  padding: 48rpx 40rpx;
+.brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10rpx;
 }
-.title {
-  font-size: 40rpx;
+.brand-orb {
+  width: 132rpx;
+  height: 132rpx;
+  border-radius: 40rpx;
+  background: $brand-gradient;
+  color: #fff;
+  font-size: 60rpx;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 20rpx 48rpx rgba(79, 108, 255, 0.38);
+}
+.brand-name {
+  margin-top: 16rpx;
+  font-size: 42rpx;
   font-weight: 700;
   color: $text-primary;
 }
-.subtitle {
-  margin-top: 10rpx;
-  margin-bottom: 30rpx;
+.brand-slogan {
   font-size: 24rpx;
   color: $text-secondary;
 }
+
+.card {
+  margin-top: 56rpx;
+  padding: 34rpx 34rpx 30rpx;
+}
+.tabs {
+  display: flex;
+  background: rgba(47, 107, 255, 0.07);
+  border-radius: $radius-pill;
+  padding: 6rpx;
+}
+.tab {
+  flex: 1;
+  text-align: center;
+  padding: 16rpx 0;
+  border-radius: $radius-pill;
+  font-size: 28rpx;
+  color: $text-secondary;
+}
+.tab.active {
+  background: #fff;
+  color: $brand-primary;
+  font-weight: 600;
+  box-shadow: 0 8rpx 20rpx rgba(28, 45, 90, 0.08);
+}
 .field {
-  padding: 20rpx 0;
+  margin-top: 30rpx;
+  padding-bottom: 16rpx;
   border-bottom: 1rpx solid $divider;
 }
 .label {
-  font-size: 24rpx;
-  color: $text-secondary;
+  font-size: 22rpx;
+  color: $text-tertiary;
 }
 .input {
   margin-top: 12rpx;
   font-size: 30rpx;
   color: $text-primary;
 }
-.primary-btn {
-  margin-top: 40rpx;
-  background: $brand-primary;
+.submit {
+  margin-top: 44rpx;
+  text-align: center;
+  padding: 26rpx 0;
+  border-radius: $radius-pill;
+  background: $brand-gradient;
   color: #fff;
-  border-radius: 999rpx;
   font-size: 30rpx;
+  font-weight: 600;
+  box-shadow: 0 16rpx 36rpx rgba(79, 108, 255, 0.32);
+}
+.submit.loading {
+  opacity: 0.7;
 }
 .switch {
   margin-top: 26rpx;
   text-align: center;
+  font-size: 24rpx;
   color: $brand-primary;
-  font-size: 26rpx;
 }
 .hint {
-  margin-top: 26rpx;
+  margin-top: 48rpx;
   text-align: center;
   font-size: 22rpx;
   color: $text-tertiary;

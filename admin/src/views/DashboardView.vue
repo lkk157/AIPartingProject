@@ -116,10 +116,12 @@ onBeforeUnmount(() => {
   gap: 16px;
 }
 .stat-card {
-  background: #fff;
+  background: rgba(255, 255, 255, 0.68);
+  backdrop-filter: blur(16px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.75);
   border-radius: 14px;
   padding: 18px 20px;
-  box-shadow: 0 8px 24px rgba(31, 74, 168, 0.06);
+  box-shadow: 0 12px 32px rgba(28, 45, 90, 0.09);
 }
 .stat-label {
   color: #64748b;
@@ -144,10 +146,12 @@ onBeforeUnmount(() => {
   color: #94a3b8;
 }
 .panel {
-  background: #fff;
+  background: rgba(255, 255, 255, 0.68);
+  backdrop-filter: blur(16px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.75);
   border-radius: 14px;
   padding: 18px 20px;
-  box-shadow: 0 8px 24px rgba(31, 74, 168, 0.06);
+  box-shadow: 0 12px 32px rgba(28, 45, 90, 0.09);
 }
 .panel-title {
   font-size: 15px;

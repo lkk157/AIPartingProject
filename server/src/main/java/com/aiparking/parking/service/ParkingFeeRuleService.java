@@ -64,15 +64,20 @@ public class ParkingFeeRuleService {
     }
 
     public ParkingFeeRule requireEnabledRule(Long lotId) {
-        ParkingFeeRule rule = feeRuleMapper.selectOne(Wrappers.<ParkingFeeRule>lambdaQuery()
-                .eq(ParkingFeeRule::getLotId, lotId)
-                .eq(ParkingFeeRule::getEnabled, 1)
-                .orderByDesc(ParkingFeeRule::getId)
-                .last("LIMIT 1"));
+        ParkingFeeRule rule = findEnabledRule(lotId);
         if (rule == null) {
             throw new NotFoundException("该停车场未配置收费规则");
         }
         return rule;
+    }
+
+    /** 未配置规则时返回 null（供"预估费用"等非强制场景使用） */
+    public ParkingFeeRule findEnabledRule(Long lotId) {
+        return feeRuleMapper.selectOne(Wrappers.<ParkingFeeRule>lambdaQuery()
+                .eq(ParkingFeeRule::getLotId, lotId)
+                .eq(ParkingFeeRule::getEnabled, 1)
+                .orderByDesc(ParkingFeeRule::getId)
+                .last("LIMIT 1"));
     }
 
     private ParkingFeeRule requireRule(Long ruleId) {

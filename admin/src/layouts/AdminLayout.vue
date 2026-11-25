@@ -62,8 +62,10 @@ function onCommand(command: string) {
   min-height: 100vh;
 }
 .aside {
-  background: #0f172a;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.96) 0%, rgba(30, 41, 59, 0.92) 100%);
+  backdrop-filter: blur(14px);
   color: #e2e8f0;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
 }
 .brand {
   display: flex;
@@ -96,21 +98,37 @@ function onCommand(command: string) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: #fff;
-  border-bottom: 1px solid #eef2f7;
+  background: rgba(255, 255, 255, 0.66);
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.7);
 }
 .header-title {
   font-size: 16px;
   font-weight: 600;
   color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .user {
   cursor: pointer;
   color: #334155;
   display: inline-flex;
   align-items: center;
+  white-space: nowrap;
+  margin-left: 12px;
+}
+
+@media (max-width: 960px) {
+  .aside {
+    width: 168px !important;
+  }
+  .brand-text {
+    font-size: 14px;
+  }
 }
 .main {
-  background: #f4f6fa;
+  background: transparent;
 }
 </style>
