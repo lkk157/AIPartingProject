@@ -108,6 +108,20 @@ class ParkingFlowIntegrationTest extends AbstractIntegrationTest {
         return lotId;
     }
 
+    private long[] spaceIds(long lotId) throws Exception {
+        MvcResult result = mockMvc.perform(get("/api/admin/lots/{lotId}/spaces", lotId)
+                        .header("Authorization", "Bearer " + adminToken)
+                        .param("size", "50"))
+                .andExpect(status().isOk())
+                .andReturn();
+        JsonNode records = json(result).path("data").path("records");
+        long[] ids = new long[records.size()];
+        for (int index = 0; index < records.size(); index++) {
+            ids[index] = records.get(index).path("id").asLong();
+        }
+        return ids;
+    }
+
     private long firstSpaceId(long lotId) throws Exception {
         MvcResult result = mockMvc.perform(get("/api/admin/lots/{lotId}/spaces", lotId)
                         .header("Authorization", "Bearer " + adminToken))
@@ -246,6 +260,84 @@ class ParkingFlowIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.records[0].freeCount").isNumber())
                 .andExpect(jsonPath("$.data.records[0].priceFromCents").isNumber());
+    }
+
+    @Test
+    void should_reject_second_reservation_until_first_is_cancelled() throws Exception {
+        long lotId = createLotWithSpaces(2);
+        String userToken = registerUser();
+        long[] spaceIds = spaceIds(lotId);
+        LocalDateTime start = LocalDate.now().plusDays(2).atTime(LocalTime.of(9, 0));
+
+        MvcResult first = mockMvc.perform(post("/api/reservations")
+                        .header("Authorization", "Bearer " + userToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"lotId":%d,"spaceId":%d,"startTime":"%s","hours":1}
+                                """.formatted(lotId, spaceIds[0], start)))
+                .andExpect(status().isOk())
+                .andReturn();
+        long reservationId = json(first).path("data").path("id").asLong();
+
+        mockMvc.perform(post("/api/reservations")
+                        .header("Authorization", "Bearer " + userToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"lotId":%d,"spaceId":%d,"startTime":"%s","hours":1}
+                                """.formatted(lotId, spaceIds[1], start)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("您已有待使用的预约，请先使用或取消后再预约"));
+
+        mockMvc.perform(delete("/api/reservations/{id}", reservationId)
+                        .header("Authorization", "Bearer " + userToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/reservations")
+                        .header("Authorization", "Bearer " + userToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"lotId":%d,"spaceId":%d,"startTime":"%s","hours":1}
+                                """.formatted(lotId, spaceIds[1], start)))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void should_expire_stale_reservation_and_allow_new_one() throws Exception {
+        long lotId = createLotWithSpaces(2);
+        String userToken = registerUser();
+        long[] spaceIds = spaceIds(lotId);
+
+        MvcResult meResult = mockMvc.perform(get("/api/auth/me")
+                        .header("Authorization", "Bearer " + userToken))
+                .andExpect(status().isOk())
+                .andReturn();
+        long userId = json(meResult).path("data").path("id").asLong();
+
+        // 造一条已过结束时间但仍是「待使用」的历史预约
+        jdbcTemplate.update("""
+                INSERT INTO reservation (user_id, lot_id, space_id, start_time, end_time, status)
+                VALUES (?, ?, ?, ?, ?, 0)
+                """, userId, lotId, spaceIds[0],
+                LocalDateTime.now().minusDays(2), LocalDateTime.now().minusDays(2).plusHours(1));
+        jdbcTemplate.update("UPDATE parking_space SET status = 2 WHERE id = ?", spaceIds[0]);
+
+        LocalDateTime start = LocalDate.now().plusDays(2).atTime(LocalTime.of(14, 0));
+        mockMvc.perform(post("/api/reservations")
+                        .header("Authorization", "Bearer " + userToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"lotId":%d,"spaceId":%d,"startTime":"%s","hours":1}
+                                """.formatted(lotId, spaceIds[1], start)))
+                .andExpect(status().isOk());
+
+        Integer staleStatus = jdbcTemplate.queryForObject(
+                "SELECT status FROM reservation WHERE space_id = ? AND user_id = ? ORDER BY id LIMIT 1",
+                Integer.class, spaceIds[0], userId);
+        assertThat(staleStatus).isEqualTo(3);
+
+        Integer spaceStatus = jdbcTemplate.queryForObject(
+                "SELECT status FROM parking_space WHERE id = ?", Integer.class, spaceIds[0]);
+        assertThat(spaceStatus).isZero();
     }
 
     @Test

@@ -29,4 +29,21 @@ public interface ReservationMapper extends BaseMapper<Reservation> {
               AND end_time > NOW()
             """)
     long countActiveBySpace(@Param("spaceId") Long spaceId);
+
+    /** 同一车主只能有一条待使用预约：先锁用户行，串行化并发下单 */
+    @Select("SELECT id FROM `user` WHERE id = #{userId} FOR UPDATE")
+    Long lockUser(@Param("userId") Long userId);
+
+    /**
+     * 取该车主当前待使用预约（加锁读，绕过 REPEATABLE READ 快照，确保能看到并发事务已提交的数据）
+     */
+    @Select("""
+            SELECT id
+            FROM reservation
+            WHERE user_id = #{userId}
+              AND status = 0
+            LIMIT 1
+            FOR UPDATE
+            """)
+    Long findActiveIdForUpdate(@Param("userId") Long userId);
 }

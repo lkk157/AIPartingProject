@@ -17,10 +17,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -121,6 +123,43 @@ class ReservationServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("该时段已被预约");
         verify(spaceMapper, never()).updateStatusIfMatch(anyLong(), anyInt(), anyInt());
+    }
+
+    @Test
+    void should_reject_when_user_already_has_active_reservation() {
+        when(parkingLotService.requireLot(1L)).thenReturn(openLot());
+        when(spaceMapper.selectById(7L)).thenReturn(space(1L));
+        when(reservationMapper.findActiveIdForUpdate(5L)).thenReturn(1L);
+
+        assertThatThrownBy(() -> newService().create(5L, request(tomorrowHour())))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("已有待使用的预约");
+        verify(reservationMapper, never()).insert(any(Reservation.class));
+    }
+
+    @Test
+    void should_expire_stale_reservation_then_allow_create() {
+        Reservation stale = pendingReservation(5L);
+        stale.setId(99L);
+        stale.setEndTime(LocalDateTime.now().minusHours(1));
+
+        when(parkingLotService.requireLot(1L)).thenReturn(openLot());
+        when(spaceMapper.selectById(7L)).thenReturn(space(1L));
+        when(reservationMapper.selectList(any())).thenReturn(java.util.List.of(stale));
+        when(reservationMapper.update(isNull(), any())).thenReturn(1);
+        when(reservationMapper.countActiveBySpace(7L)).thenReturn(0L);
+        when(spaceMapper.updateStatusIfMatch(7L, 2, 0)).thenReturn(1);
+        when(reservationMapper.findActiveIdForUpdate(5L)).thenReturn(null);
+        when(reservationMapper.countOverlap(anyLong(), any(), any())).thenReturn(0L);
+        when(spaceMapper.updateStatusIfMatch(7L, 0, 2)).thenReturn(1);
+        when(reservationMapper.insert(any(Reservation.class))).thenReturn(1);
+
+        com.aiparking.billing.dto.ReservationVO result = newService().create(5L, request(tomorrowHour()));
+
+        assertThat(result.spaceNo()).isEqualTo("A-001");
+        // 过期预约被释放为已过期，车位回到空闲
+        verify(spaceMapper).updateStatusIfMatch(7L, 2, 0);
+        verify(reservationMapper).insert(any(Reservation.class));
     }
 
     @Test

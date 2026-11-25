@@ -65,6 +65,80 @@ class ReservationConcurrencyTest {
     }
 
     @Test
+    void should_allow_only_one_active_reservation_per_user() throws Exception {
+        String adminToken = login("admin", "admin123");
+        String suffix = UUID.randomUUID().toString().replace("-", "").substring(0, 8);
+
+        ResponseEntity<String> lotResponse = call(HttpMethod.POST, "/api/admin/lots", java.util.Map.of(
+                "name", "单预约停车场" + suffix,
+                "address", "规则路 1 号",
+                "area", "规则区" + suffix), adminToken);
+        long lotId = objectMapper.readTree(lotResponse.getBody()).path("data").path("id").asLong();
+
+        call(HttpMethod.POST, "/api/admin/lots/" + lotId + "/fee-rules", java.util.Map.of(
+                "ruleName", "标准", "freeMinutes", 15, "firstHourCents", 600,
+                "extraPerHourCents", 400, "dailyCapCents", 4000), adminToken);
+
+        call(HttpMethod.POST, "/api/admin/lots/" + lotId + "/spaces/batch", java.util.Map.of(
+                "count", 2, "prefix", "R" + suffix.substring(0, 4)), adminToken);
+
+        ResponseEntity<String> spacesResponse = call(HttpMethod.GET,
+                "/api/admin/lots/" + lotId + "/spaces", null, adminToken);
+        JsonNode records = objectMapper.readTree(spacesResponse.getBody())
+                .path("data").path("records");
+        long firstSpace = records.get(0).path("id").asLong();
+        long secondSpace = records.get(1).path("id").asLong();
+
+        String username = "u" + suffix;
+        call(HttpMethod.POST, "/api/auth/register", java.util.Map.of(
+                "username", username, "password", "secret123"), null);
+        String userToken = login(username, "secret123");
+
+        LocalDateTime start = LocalDate.now().plusDays(3).atTime(LocalTime.of(9, 0));
+
+        ExecutorService pool = Executors.newFixedThreadPool(THREADS);
+        CountDownLatch ready = new CountDownLatch(THREADS);
+        CountDownLatch go = new CountDownLatch(1);
+        AtomicInteger success = new AtomicInteger();
+        AtomicInteger rejected = new AtomicInteger();
+
+        for (int i = 0; i < THREADS; i++) {
+            final long spaceId = i % 2 == 0 ? firstSpace : secondSpace;
+            pool.submit(() -> {
+                ready.countDown();
+                try {
+                    go.await(5, TimeUnit.SECONDS);
+                    java.util.Map<String, Object> body = new java.util.HashMap<>();
+                    body.put("lotId", lotId);
+                    body.put("spaceId", spaceId);
+                    body.put("startTime", start.toString());
+                    body.put("hours", 1);
+                    ResponseEntity<String> response = call(HttpMethod.POST, "/api/reservations", body, userToken);
+                    if (response.getStatusCode().value() == 200) {
+                        success.incrementAndGet();
+                    } else {
+                        rejected.incrementAndGet();
+                    }
+                } catch (Exception e) {
+                    rejected.incrementAndGet();
+                }
+            });
+        }
+
+        ready.await(10, TimeUnit.SECONDS);
+        go.countDown();
+        pool.shutdown();
+        assertThat(pool.awaitTermination(30, TimeUnit.SECONDS)).isTrue();
+
+        assertThat(success.get()).as("同一车主并发预约只能成功一次").isEqualTo(1);
+        assertThat(rejected.get()).isEqualTo(THREADS - 1);
+
+        ResponseEntity<String> listResponse = call(HttpMethod.GET, "/api/reservations", null, userToken);
+        JsonNode list = objectMapper.readTree(listResponse.getBody()).path("data");
+        assertThat(list.size()).isEqualTo(1);
+    }
+
+    @Test
     void should_allow_only_one_success_when_ten_threads_reserve_same_slot() throws Exception {
         String adminToken = login("admin", "admin123");
         String suffix = UUID.randomUUID().toString().replace("-", "").substring(0, 8);

@@ -42,6 +42,15 @@
         </view>
       </view>
 
+      <!-- 待使用预约提示 -->
+      <view v-if="pendingReservation" class="pending glass" @click="goOrders(0)">
+        <view class="pending-left">
+          <text class="pending-title">你有 1 条待使用预约</text>
+          <text class="pending-sub">{{ pendingReservation.lotName || '停车场' }} · {{ pendingReservation.spaceNo || '' }} · {{ shortTime(pendingReservation.startTime) }}</text>
+        </view>
+        <text class="pending-arrow">查看 ›</text>
+      </view>
+
       <!-- 快捷入口 -->
       <view class="quick">
         <view class="quick-item glass" @click="scrollToList">
@@ -126,7 +135,7 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref } from 'vue'
 import { onPullDownRefresh, onShow } from '@dcloudio/uni-app'
-import { currentParking, listLots, type CurrentParking, type Lot } from '@/api'
+import { currentParking, listLots, listReservations, type CurrentParking, type Lot, type Reservation } from '@/api'
 import { formatMoney } from '@/utils/format'
 import { getStoredUser, getToken } from '@/utils/request'
 
@@ -138,6 +147,7 @@ const loading = ref(false)
 const loggedIn = ref(false)
 const nickname = ref('')
 const current = ref<CurrentParking | null>(null)
+const pendingReservation = ref<Reservation | null>(null)
 const nowTick = ref(Date.now())
 
 const avatarText = computed(() => (nickname.value ? nickname.value.slice(0, 1).toUpperCase() : '登'))
@@ -189,15 +199,29 @@ async function loadCurrent() {
   }
 }
 
+async function loadPendingReservation() {
+  try {
+    const list = await listReservations()
+    pendingReservation.value = list.find((item) => item.status === 0) ?? null
+  } catch {
+    pendingReservation.value = null
+  }
+}
+
+function shortTime(iso: string): string {
+  return iso.replace('T', ' ').slice(5, 16)
+}
+
 async function load() {
   loggedIn.value = Boolean(getToken())
   nickname.value = getStoredUser()?.nickname ?? ''
   if (!loggedIn.value) {
     lots.value = []
     current.value = null
+    pendingReservation.value = null
     return
   }
-  await Promise.all([loadLots(), loadAreas(), loadCurrent()])
+  await Promise.all([loadLots(), loadAreas(), loadCurrent(), loadPendingReservation()])
 }
 
 function applyFilter() {
@@ -397,6 +421,34 @@ onPullDownRefresh(async () => {
   color: $brand-primary-deep;
   font-size: 26rpx;
   font-weight: 600;
+}
+
+/* 待使用预约 */
+.pending {
+  margin-top: 24rpx;
+  padding: 22rpx 26rpx;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-left: 6rpx solid $brand-primary;
+}
+.pending-left {
+  display: flex;
+  flex-direction: column;
+  gap: 4rpx;
+}
+.pending-title {
+  font-size: 26rpx;
+  font-weight: 600;
+  color: $text-primary;
+}
+.pending-sub {
+  font-size: 22rpx;
+  color: $text-secondary;
+}
+.pending-arrow {
+  font-size: 24rpx;
+  color: $brand-primary;
 }
 
 /* 快捷入口 */

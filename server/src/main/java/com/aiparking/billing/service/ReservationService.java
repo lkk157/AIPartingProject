@@ -66,6 +66,15 @@ public class ReservationService {
         }
         LocalDateTime end = start.plusHours(request.getHours());
 
+        // 业务规则：同一车主同时只能有一条待使用预约
+        // 先锁用户行，避免并发请求各自通过校验后双开；过期的待使用预约先自动作废并释放车位
+        reservationMapper.lockUser(userId);
+        expireStaleReservations(userId);
+        Long activeReservationId = reservationMapper.findActiveIdForUpdate(userId);
+        if (activeReservationId != null && activeReservationId > 0) {
+            throw new BusinessException("您已有待使用的预约，请先使用或取消后再预约");
+        }
+
         if (reservationMapper.countOverlap(space.getId(), start, end) > 0) {
             throw new BusinessException("该时段已被预约");
         }
@@ -138,6 +147,25 @@ public class ReservationService {
         return reservations.stream()
                 .map(r -> toVO(r, lotNames.get(r.getLotId()), spaceNos.get(r.getSpaceId())))
                 .collect(Collectors.toList());
+    }
+
+    /** 把该用户已过结束时间但仍是「待使用」的预约置为已过期，并释放被锁定的车位 */
+    private void expireStaleReservations(Long userId) {
+        List<Reservation> stale = reservationMapper.selectList(Wrappers.<Reservation>lambdaQuery()
+                .eq(Reservation::getUserId, userId)
+                .eq(Reservation::getStatus, ReservationStatus.PENDING.getCode())
+                .le(Reservation::getEndTime, LocalDateTime.now()));
+
+        for (Reservation reservation : stale) {
+            int updated = reservationMapper.update(null, Wrappers.<Reservation>lambdaUpdate()
+                    .eq(Reservation::getId, reservation.getId())
+                    .eq(Reservation::getStatus, ReservationStatus.PENDING.getCode())
+                    .set(Reservation::getStatus, ReservationStatus.EXPIRED.getCode()));
+            if (updated > 0 && reservationMapper.countActiveBySpace(reservation.getSpaceId()) == 0) {
+                spaceMapper.updateStatusIfMatch(reservation.getSpaceId(),
+                        SpaceStatus.RESERVED.getCode(), SpaceStatus.FREE.getCode());
+            }
+        }
     }
 
     private static ReservationVO toVO(Reservation reservation, String lotName, String spaceNo) {
