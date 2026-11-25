@@ -126,7 +126,7 @@ public class ParkingLotService {
         }
     }
 
-    ParkingLot requireLot(Long id) {
+    public ParkingLot requireLot(Long id) {
         ParkingLot lot = lotMapper.selectById(id);
         if (lot == null) {
             throw new NotFoundException("停车场不存在");
