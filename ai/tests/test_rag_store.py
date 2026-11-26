@@ -46,10 +46,11 @@ def test_add_document_increases_chunk_count(index: RagIndex) -> None:
 
 def test_delete_document_removes_chunks(index: RagIndex) -> None:
     doc = index.add_document("夜间停车管理办法", LONG_TEXT)
+    chunks_with_doc = index.stats()["chunks"]
     assert index.search("夜间停车管理办法", k=5)
 
     assert index.delete_document(doc["id"]) is True
-    assert index.stats()["chunks"] < index.stats()["chunks"] + 1
+    assert index.stats()["chunks"] < chunks_with_doc
     assert all(hit["id"] != doc["id"] for hit in index.search("夜间停车管理办法", k=5))
 
 
