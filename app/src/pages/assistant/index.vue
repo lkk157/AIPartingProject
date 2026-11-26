@@ -145,7 +145,8 @@ async function send(text?: string) {
 @use '@/styles/tokens.scss' as *;
 
 .page {
-  height: 100vh;
+  /* H5 下顶部导航由 uni-app 渲染，用 window-top 变量扣掉，避免输入栏被顶出屏幕 */
+  height: calc(100vh - var(--window-top, 0px));
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -275,7 +276,7 @@ async function send(text?: string) {
   align-items: center;
   gap: 16rpx;
   padding: 14rpx 18rpx;
-  margin-bottom: 24rpx;
+  margin-bottom: 16rpx;
   border-radius: $radius-pill;
 }
 .input {
