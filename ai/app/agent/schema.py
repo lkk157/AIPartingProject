@@ -45,6 +45,7 @@ class KnowledgeDoc(BaseModel):
     title: str
     source: str
     chars: int
+    chunks: int = 0
     createdAt: str
 
 
@@ -52,6 +53,7 @@ class KnowledgeHit(BaseModel):
     id: str
     title: str
     source: str
+    chunkIndex: int = 0
     score: float
     snippet: str
 
@@ -59,3 +61,9 @@ class KnowledgeHit(BaseModel):
 class KnowledgeSearchRequest(BaseModel):
     query: str = Field(..., min_length=1, max_length=200)
     topK: int = Field(default=3, ge=1, le=10)
+    useMmr: bool = Field(default=True, description="是否使用 MMR 去冗余")
+
+
+class KnowledgeUpload(BaseModel):
+    filename: str = Field(..., min_length=3, max_length=120)
+    contentBase64: str = Field(..., min_length=16, description="文件内容的 base64")

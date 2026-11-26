@@ -12,6 +12,7 @@
         <el-menu-item index="/orders">订单管理</el-menu-item>
         <el-menu-item index="/predict">AI 预测</el-menu-item>
         <el-menu-item index="/knowledge">AI 知识库</el-menu-item>
+        <el-menu-item index="/ops">运营分析</el-menu-item>
         <el-menu-item index="/users">用户管理</el-menu-item>
       </el-menu>
     </el-aside>

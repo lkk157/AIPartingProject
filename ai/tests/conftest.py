@@ -20,6 +20,7 @@ def model_env(tmp_path_factory: pytest.TempPathFactory) -> Path:
     root = tmp_path_factory.mktemp("prediction")
     os.environ["AI_DATA_PATH"] = str(root / "occupancy.csv")
     os.environ["AI_MODEL_DIR"] = str(root / "models")
+    os.environ["AI_RAG_DIR"] = str(root / "rag")
 
     df = generate_dataset(days=DAYS)
     save_dataset(df)

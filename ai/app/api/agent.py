@@ -7,12 +7,13 @@ import json
 from fastapi import APIRouter, Header, HTTPException
 from fastapi.responses import StreamingResponse
 
-from app.agent import engine, llm
+from app.agent import engine, llm, ops
 from app.agent.knowledge import get_store
 from app.agent.schema import (
     ChatRequest,
     KnowledgeCreate,
     KnowledgeSearchRequest,
+    KnowledgeUpload,
 )
 
 router = APIRouter(tags=["agent"])
@@ -84,6 +85,15 @@ def create_document(payload: KnowledgeCreate) -> dict:
     return _ok({k: doc[k] for k in ("id", "title", "source", "createdAt")})
 
 
+@router.post("/knowledge/upload")
+def upload_document(payload: KnowledgeUpload) -> dict:
+    try:
+        doc = get_store().add_file(payload.filename, payload.contentBase64)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return _ok({key: doc[key] for key in ("id", "title", "source", "createdAt")})
+
+
 @router.delete("/knowledge/documents/{doc_id}")
 def delete_document(doc_id: str) -> dict:
     if not get_store().delete_document(doc_id):
@@ -93,4 +103,21 @@ def delete_document(doc_id: str) -> dict:
 
 @router.post("/knowledge/search")
 def search_documents(payload: KnowledgeSearchRequest) -> dict:
-    return _ok(get_store().search(payload.query, top_k=payload.topK))
+    return _ok(get_store().search(payload.query, top_k=payload.topK, use_mmr=payload.useMmr))
+
+
+@router.get("/knowledge/stats")
+def knowledge_stats() -> dict:
+    return _ok(get_store().stats())
+
+
+@router.get("/agent/ops/overview")
+def ops_overview(authorization: str | None = Header(default=None)) -> dict:
+    token = _token(authorization)
+    if not token:
+        raise HTTPException(status_code=401, detail="需要管理员登录")
+    try:
+        return _ok(ops.overview(token))
+    except ops.OpsError as exc:
+        message = str(exc)
+        raise HTTPException(status_code=403 if "权限" in message else 502, detail=message) from exc

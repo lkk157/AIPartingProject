@@ -1,9 +1,20 @@
 <template>
   <div class="page">
     <div class="toolbar glass-panel">
-      <div class="title">知识库文档</div>
-      <span class="hint">内置 {{ seedCount }} 篇 · 自定义 {{ customCount }} 篇</span>
+      <div class="title">知识库</div>
+      <span class="hint">
+        {{ stats.provider === 'hash' ? '离线哈希向量' : 'bge-m3 向量' }} · {{ stats.dim }} 维 ·
+        分块 {{ stats.chunkSize }}/{{ stats.overlap }} · 共 {{ stats.chunks }} 块
+      </span>
       <div class="spacer" />
+      <el-upload
+        :auto-upload="false"
+        :show-file-list="false"
+        accept=".md,.markdown,.txt,.pdf"
+        :on-change="onFileChange"
+      >
+        <el-button :loading="uploading">上传文件</el-button>
+      </el-upload>
       <el-button type="primary" @click="openCreate">新增文档</el-button>
     </div>
 
@@ -18,14 +29,15 @@
       <div class="glass-panel table-panel">
         <el-table v-loading="loading" :data="documents" size="default">
           <el-table-column prop="title" label="标题" min-width="200" />
-          <el-table-column label="来源" width="110">
+          <el-table-column label="来源" width="100">
             <template #default="{ row }">
               <el-tag :type="row.source === 'seed' ? 'info' : 'success'" size="small">
-                {{ row.source === 'seed' ? '内置' : '自定义' }}
+                {{ sourceLabel(row.source) }}
               </el-tag>
             </template>
           </el-table-column>
           <el-table-column prop="chars" label="字数" width="90" />
+          <el-table-column prop="chunks" label="分块" width="80" />
           <el-table-column prop="createdAt" label="更新时间" width="180" />
           <el-table-column label="操作" width="100">
             <template #default="{ row }">
@@ -40,19 +52,20 @@
         <div class="panel-head">
           <div>
             <div class="panel-title">检索测试</div>
-            <div class="panel-sub">验证用户提问能命中哪篇文档（字符向量召回 + 领域词重排）</div>
+            <div class="panel-sub">Chroma 向量召回 + 领域词加权 + MMR 去冗余（k=5）</div>
           </div>
           <div class="search-box">
-            <el-input v-model="query" placeholder="例如：停车怎么收费" style="width: 260px" @keyup.enter="onSearch" />
+            <el-switch v-model="useMmr" active-text="MMR" @change="onSearch" />
+            <el-input v-model="query" placeholder="例如：停车怎么收费" style="width: 240px" @keyup.enter="onSearch" />
             <el-button type="primary" :loading="searching" @click="onSearch">检索</el-button>
           </div>
         </div>
 
         <div v-if="hits.length" class="hits">
-          <div v-for="hit in hits" :key="hit.id" class="hit">
+          <div v-for="hit in hits" :key="hit.id + hit.score" class="hit">
             <div class="hit-head">
               <span class="hit-title">{{ hit.title }}</span>
-              <span class="hit-source">{{ hit.source === 'seed' ? '内置' : '自定义' }}</span>
+              <span class="hit-source">{{ sourceLabel(hit.source) }}</span>
               <span class="hit-score">{{ (hit.score * 100).toFixed(1) }}%</span>
             </div>
             <div class="hit-snippet">{{ hit.snippet }}</div>
@@ -88,36 +101,55 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox, type UploadFile } from 'element-plus'
 import {
   createDocument,
   deleteDocument,
+  fetchKnowledgeStats,
   listDocuments,
   searchKnowledge,
+  uploadKnowledgeFile,
   type KnowledgeDoc,
   type KnowledgeHit,
+  type KnowledgeStats,
 } from '@/api/knowledge'
 
 const loading = ref(false)
 const saving = ref(false)
+const uploading = ref(false)
 const searching = ref(false)
 const documents = ref<KnowledgeDoc[]>([])
 const hits = ref<KnowledgeHit[]>([])
 const error = ref('')
 const query = ref('停车怎么收费')
+const useMmr = ref(true)
 const searched = ref(false)
 const dialogVisible = ref(false)
 const form = reactive({ title: '', content: '' })
+const stats = ref<KnowledgeStats>({
+  provider: 'hash',
+  dim: 0,
+  documents: 0,
+  chunks: 0,
+  chunkSize: 500,
+  overlap: 80,
+})
 
-const seedCount = computed(() => documents.value.filter((doc) => doc.source === 'seed').length)
-const customCount = computed(() => documents.value.filter((doc) => doc.source !== 'seed').length)
 const canSave = computed(() => form.title.trim().length >= 2 && form.content.trim().length >= 10)
+
+function sourceLabel(source: string): string {
+  if (source === 'seed') return '内置'
+  if (source === 'upload') return '上传'
+  return '自定义'
+}
 
 async function reload() {
   loading.value = true
   error.value = ''
   try {
-    documents.value = await listDocuments()
+    const [docs, meta] = await Promise.all([listDocuments(), fetchKnowledgeStats()])
+    documents.value = docs
+    stats.value = meta
   } catch (err) {
     error.value = err instanceof Error ? err.message : '请求失败'
   } finally {
@@ -135,7 +167,7 @@ async function onCreate() {
   saving.value = true
   try {
     await createDocument(form.title.trim(), form.content.trim())
-    ElMessage.success('已加入知识库，立即可被检索')
+    ElMessage.success('已入库并完成分块索引')
     dialogVisible.value = false
     await reload()
   } catch (err) {
@@ -145,10 +177,42 @@ async function onCreate() {
   }
 }
 
+async function onFileChange(file: UploadFile) {
+  const raw = file.raw
+  if (!raw) return
+  if (raw.size > 2 * 1024 * 1024) {
+    ElMessage.error('文件不能超过 2MB')
+    return
+  }
+  uploading.value = true
+  try {
+    const base64 = await readAsBase64(raw)
+    await uploadKnowledgeFile(raw.name, base64)
+    ElMessage.success(`已上传并索引：${raw.name}`)
+    await reload()
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '上传失败')
+  } finally {
+    uploading.value = false
+  }
+}
+
+function readAsBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const result = String(reader.result ?? '')
+      resolve(result.includes(',') ? result.split(',')[1] : result)
+    }
+    reader.onerror = () => reject(new Error('读取文件失败'))
+    reader.readAsDataURL(file)
+  })
+}
+
 async function onDelete(row: KnowledgeDoc) {
-  await ElMessageBox.confirm(`确认删除「${row.title}」？`, '删除确认', { type: 'warning' }).catch(() =>
-    Promise.reject(new Error('cancel')),
-  )
+  await ElMessageBox.confirm(`确认删除「${row.title}」？删除后对应分块会同步清理。`, '删除确认', {
+    type: 'warning',
+  }).catch(() => Promise.reject(new Error('cancel')))
   try {
     await deleteDocument(row.id)
     ElMessage.success('已删除')
@@ -162,7 +226,7 @@ async function onSearch() {
   if (!query.value.trim()) return
   searching.value = true
   try {
-    hits.value = await searchKnowledge(query.value.trim(), 5)
+    hits.value = await searchKnowledge(query.value.trim(), 5, useMmr.value)
     searched.value = true
   } catch (err) {
     ElMessage.error(err instanceof Error ? err.message : '检索失败')
@@ -188,6 +252,7 @@ onMounted(async () => {
 .toolbar {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 12px;
   padding: 14px 16px;
 }
@@ -228,6 +293,7 @@ onMounted(async () => {
 }
 .search-box {
   display: flex;
+  align-items: center;
   gap: 10px;
 }
 .hits {
@@ -269,6 +335,7 @@ onMounted(async () => {
   font-size: 13px;
   color: #5b6478;
   line-height: 1.6;
+  white-space: pre-wrap;
 }
 .empty {
   margin-top: 18px;

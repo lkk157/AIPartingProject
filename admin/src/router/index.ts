@@ -22,6 +22,7 @@ const router = createRouter({
         { path: 'reservations', name: 'reservations', component: () => import('@/views/ReservationsView.vue'), meta: { title: '预约管理' } },
         { path: 'predict', name: 'predict', component: () => import('@/views/PredictView.vue'), meta: { title: 'AI 占用率预测' } },
         { path: 'knowledge', name: 'knowledge', component: () => import('@/views/KnowledgeView.vue'), meta: { title: 'AI 知识库' } },
+        { path: 'ops', name: 'ops', component: () => import('@/views/OpsView.vue'), meta: { title: '运营分析' } },
       ],
     },
     { path: '/:pathMatch(.*)*', redirect: '/' },

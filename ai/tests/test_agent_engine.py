@@ -13,7 +13,7 @@ from app.agent.tools import BackendTools, ToolResult
 
 @pytest.fixture(autouse=True)
 def isolated_knowledge(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("AI_KNOWLEDGE_PATH", str(tmp_path / "knowledge.json"))
+    monkeypatch.setenv("AI_RAG_DIR", str(tmp_path / "rag"))
     reset_store()
 
 
