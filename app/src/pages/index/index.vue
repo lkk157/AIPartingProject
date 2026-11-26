@@ -128,6 +128,7 @@
       </view>
 
       <view class="footer">数据来自实时接口 · 智泊停车</view>
+      <view class="ai-fab" @click="goAssistant">AI</view>
     </view>
   </view>
 </template>
@@ -256,6 +257,14 @@ function goOrders(tab: number) {
     return
   }
   uni.navigateTo({ url: `/pages/order/list?tab=${tab}` })
+}
+
+function goAssistant() {
+  if (!loggedIn.value) {
+    goLogin()
+    return
+  }
+  uni.navigateTo({ url: '/pages/assistant/index' })
 }
 
 function goCurrent() {
@@ -617,5 +626,22 @@ onPullDownRefresh(async () => {
   text-align: center;
   font-size: 22rpx;
   color: $text-tertiary;
+}
+.ai-fab {
+  position: fixed;
+  right: 34rpx;
+  bottom: 70rpx;
+  width: 104rpx;
+  height: 104rpx;
+  border-radius: 34rpx;
+  background: $brand-gradient;
+  color: #fff;
+  font-size: 30rpx;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 18rpx 40rpx rgba(79, 108, 255, 0.4);
+  z-index: 10;
 }
 </style>

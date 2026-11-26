@@ -10,6 +10,8 @@ declare module '*.vue' {
 interface ImportMetaEnv {
   /** 小程序端需指定后端完整地址，如 http://192.168.1.10:8080；H5 走 vite 代理可留空 */
   readonly VITE_API_BASE?: string
+  /** AI 服务地址（小程序端需填完整地址），H5 走 vite 代理 /ai 可留空 */
+  readonly VITE_AI_BASE?: string
 }
 
 interface ImportMeta {

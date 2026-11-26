@@ -38,6 +38,13 @@
       "style": {
         "navigationBarTitleText": "登录"
       }
+    },
+    {
+      "path": "pages/assistant/index",
+      "style": {
+        "navigationBarTitleText": "AI 助手",
+        "backgroundColor": "#F3F6FD"
+      }
     }
   ],
   "globalStyle": {

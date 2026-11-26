@@ -35,6 +35,10 @@
           <text class="mi-text">我的订单</text>
           <text class="mi-arrow">›</text>
         </view>
+        <view class="menu-item" @click="go('/pages/assistant/index')">
+          <text class="mi-text">AI 助手</text>
+          <text class="mi-arrow">›</text>
+        </view>
         <view class="menu-item" @click="about">
           <text class="mi-text">关于智泊停车</text>
           <text class="mi-arrow">›</text>
