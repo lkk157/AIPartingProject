@@ -92,3 +92,68 @@ def test_unknown_question_returns_guidance() -> None:
 def test_stream_chunks_rebuild_original_text() -> None:
     text = "你好，我是智泊停车助手。可以帮你查空闲车位、预约、订单。"
     assert "".join(engine.stream_chunks(text, size=5)) == text
+
+
+def test_data_answer_is_not_rewritten_by_llm(monkeypatch: pytest.MonkeyPatch) -> None:
+    """真实联调发现：7B 模型会把「空闲 3 位」改写成「暂无停车场」，数据类回答必须保持模板。"""
+
+    def fake_list_lots(self, keyword=None):
+        return ToolResult("list_lots", True, "· 科技园停车场（南山区）：空闲 3/120 位，首小时 ¥6 起")
+
+    monkeypatch.setattr(BackendTools, "list_lots", fake_list_lots)
+    monkeypatch.setattr(engine.llm, "available", lambda: True)
+    monkeypatch.setattr(engine.llm, "generate", lambda *args, **kwargs: "目前附近暂无在营停车场。")
+
+    result = engine.chat("附近哪里有空位", token="fake-token")
+
+    assert "空闲 3/120" in result.answer
+    assert "暂无" not in result.answer
+
+
+def test_knowledge_answer_can_be_polished_by_llm(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(engine.llm, "available", lambda: True)
+    monkeypatch.setattr(engine.llm, "generate", lambda *args, **kwargs: "免费 15 分钟，首小时 6 元，超出每小时 4 元。")
+
+    result = engine.chat("停车怎么收费", token=None)
+
+    assert result.answer.startswith("免费 15 分钟")
+
+
+def test_extract_keyword_returns_none_for_generic_question() -> None:
+    assert engine._extract_keyword("附近哪里有空位") is None
+    assert engine._extract_keyword("有空位吗") is None
+    assert engine._extract_keyword("科技园有空位吗") == "科技园"
+
+
+def test_lots_question_without_keyword_queries_all_lots(monkeypatch: pytest.MonkeyPatch) -> None:
+    received = {}
+
+    def fake_list_lots(self, keyword=None):
+        received["keyword"] = keyword
+        return ToolResult("list_lots", True, "· 冒烟停车场（冒烟区）：空闲 3/4 位，首小时 ¥6 起")
+
+    monkeypatch.setattr(BackendTools, "list_lots", fake_list_lots)
+    result = engine.chat("附近哪里有空位", token="fake-token")
+
+    assert received["keyword"] is None
+    assert "空闲 3/4" in result.answer
+
+
+def test_extract_keyword_returns_none_for_generic_question() -> None:
+    assert engine._extract_keyword("附近哪里有空位") is None
+    assert engine._extract_keyword("有空位吗") is None
+    assert engine._extract_keyword("科技园有空位吗") == "科技园"
+
+
+def test_lots_question_without_keyword_queries_all_lots(monkeypatch: pytest.MonkeyPatch) -> None:
+    received = {}
+
+    def fake_list_lots(self, keyword=None):
+        received["keyword"] = keyword
+        return ToolResult("list_lots", True, "· 冒烟停车场（冒烟区）：空闲 3/4 位，首小时 ¥6 起")
+
+    monkeypatch.setattr(BackendTools, "list_lots", fake_list_lots)
+    result = engine.chat("附近哪里有空位", token="fake-token")
+
+    assert received["keyword"] is None
+    assert "空闲 3/4" in result.answer

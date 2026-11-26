@@ -127,3 +127,29 @@ def test_knowledge_stats(client: TestClient) -> None:
 
 def test_ops_overview_requires_token(client: TestClient) -> None:
     assert client.get("/agent/ops/overview").status_code == 401
+
+
+def test_concurrent_knowledge_requests_do_not_break_index(client: TestClient) -> None:
+    """真实环境踩到：两个请求同时初始化索引会互删 Chroma 集合，导致 500。"""
+    from concurrent.futures import ThreadPoolExecutor
+
+    def call(path: str):
+        return client.get(path).status_code
+
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        codes = list(pool.map(call, ["/knowledge/documents", "/knowledge/stats"] * 3))
+
+    assert codes == [200] * 6
+
+
+def test_concurrent_knowledge_requests_do_not_break_index(client: TestClient) -> None:
+    """真实环境踩到：两个请求同时初始化索引会互删 Chroma 集合，导致 500。"""
+    from concurrent.futures import ThreadPoolExecutor
+
+    def call(path: str):
+        return client.get(path).status_code
+
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        codes = list(pool.map(call, ["/knowledge/documents", "/knowledge/stats"] * 3))
+
+    assert codes == [200] * 6

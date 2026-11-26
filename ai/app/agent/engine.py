@@ -13,8 +13,8 @@ from app.agent.knowledge import get_store
 from app.agent.tools import BackendTools, ToolError
 
 SYSTEM_PROMPT = (
-    "你是「智泊停车」的客服助手。只根据提供的工具结果与知识库片段回答，"
-    "不要编造车位数量、价格或订单信息；不确定时建议用户在小程序内查看。"
+    "你是「智泊停车」的客服助手。只能依据给定的知识库片段作答，"
+    "不得编造车位数量、价格、订单或政策；资料没有覆盖时明确说明并引导用户查看小程序。"
     "回答简洁，中文，控制在 120 字以内。"
 )
 
@@ -138,7 +138,8 @@ def chat(message: str, token: str | None = None) -> ChatResult:
             intent = "unknown"
 
     answer = _pretty(answer)
-    polished = _polish(message, "\n".join(facts)) if answer else None
+    # 数据类回答保持模板原样（防止模型改写数字或凭空说"没有数据"）；仅知识问答交给模型润色
+    polished = _polish(message, "\n".join(facts)) if answer and intent == "knowledge" else None
     if polished:
         answer = polished
 
@@ -157,11 +158,20 @@ def _pretty(text: str) -> str:
     return "\n".join(lines)
 
 
+_STOP_WORDS = re.compile(
+    r"(有没有|有空位|有吗|有|吗|呢|啊|请问|帮我|看看|查一下|现在|今天|附近|哪里|哪个|多少|"
+    r"的|了|在|是|车位|停车场|空位|空闲)"
+)
+
+
 def _extract_keyword(message: str) -> str | None:
-    """从「科技园有空位吗」这类句子里粗粒度抽取停车场关键词。"""
-    cleaned = re.sub(r"(有没有|有吗|吗|呢|请问|帮我|看看|查一下|附近|哪里|哪个|的|车位|停车场|空位|空闲)", "", message)
-    cleaned = cleaned.strip("？?。!！，, ")
-    return cleaned or None
+    """从「科技园有空位吗」这类句子里粗粒度抽取停车场关键词。
+
+    抽不出有效名称时必须返回 None（否则会拿「有」去 LIKE 查询，误判为"没有停车场"）。
+    """
+    cleaned = _STOP_WORDS.sub("", message)
+    cleaned = cleaned.strip("？?。!！，, 、~ ")
+    return cleaned if len(cleaned) >= 2 else None
 
 
 def stream_chunks(text: str, size: int = 18):

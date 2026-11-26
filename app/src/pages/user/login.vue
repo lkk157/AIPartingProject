@@ -73,7 +73,7 @@ async function submit() {
 
 .page {
   min-height: 100vh;
-  padding: 120rpx 40rpx 60rpx;
+  padding: 72rpx 40rpx 80rpx;
 }
 .brand {
   display: flex;
@@ -82,9 +82,9 @@ async function submit() {
   gap: 10rpx;
 }
 .brand-orb {
-  width: 132rpx;
-  height: 132rpx;
-  border-radius: 40rpx;
+  width: 120rpx;
+  height: 120rpx;
+  border-radius: 36rpx;
   background: $brand-gradient;
   color: #fff;
   font-size: 60rpx;
@@ -106,8 +106,8 @@ async function submit() {
 }
 
 .card {
-  margin-top: 56rpx;
-  padding: 34rpx 34rpx 30rpx;
+  margin-top: 40rpx;
+  padding: 30rpx 34rpx 28rpx;
 }
 .tabs {
   display: flex;
@@ -130,7 +130,7 @@ async function submit() {
   box-shadow: 0 8rpx 20rpx rgba(28, 45, 90, 0.08);
 }
 .field {
-  margin-top: 30rpx;
+  margin-top: 24rpx;
   padding-bottom: 16rpx;
   border-bottom: 1rpx solid $divider;
 }
@@ -144,7 +144,7 @@ async function submit() {
   color: $text-primary;
 }
 .submit {
-  margin-top: 44rpx;
+  margin-top: 34rpx;
   text-align: center;
   padding: 26rpx 0;
   border-radius: $radius-pill;
@@ -164,7 +164,7 @@ async function submit() {
   color: $brand-primary;
 }
 .hint {
-  margin-top: 48rpx;
+  margin-top: 32rpx;
   text-align: center;
   font-size: 22rpx;
   color: $text-tertiary;

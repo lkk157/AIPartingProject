@@ -5,6 +5,8 @@ from __future__ import annotations
 import io
 import logging
 import os
+import threading
+import threading
 import json
 import os
 import uuid
@@ -19,6 +21,12 @@ from app.agent.rag.embeddings import EmbeddingProvider, create_provider
 from app.agent.rag.retriever import hybrid_score, mmr_select
 
 os.environ.setdefault("ANONYMIZED_TELEMETRY", "False")
+
+# Chroma 的 delete/create 不是并发安全的：多个实例同时重建会互相删集合
+_INIT_LOCK = threading.Lock()
+
+# Chroma 的 delete/create 不是并发安全的：多个实例同时重建会互相删集合
+_INIT_LOCK = threading.Lock()
 logging.getLogger("chromadb.telemetry").setLevel(logging.CRITICAL)
 
 SEED_DIR = Path(__file__).resolve().parents[3] / "knowledge"
@@ -44,7 +52,8 @@ class RagIndex:
         )
         self._collection_name = f"knowledge_{self._provider.key}"
         self._collection = None
-        self._rebuild()
+        with _INIT_LOCK:
+            self._rebuild()
 
     # ---------- 对外接口 ----------
     def list_documents(self) -> list[dict]:

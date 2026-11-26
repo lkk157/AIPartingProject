@@ -3,17 +3,22 @@
 from __future__ import annotations
 
 import base64
+import threading
 
 from app.agent.rag.store import RagIndex
 
 _index: RagIndex | None = None
+_lock = threading.Lock()
+_lock = threading.Lock()
 _service = None
 
 
 def get_index() -> RagIndex:
     global _index
     if _index is None:
-        _index = RagIndex()
+        with _lock:
+            if _index is None:
+                _index = RagIndex()
     return _index
 
 
